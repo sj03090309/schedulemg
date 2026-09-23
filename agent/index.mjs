@@ -3,6 +3,7 @@
 //   node agent/index.mjs            한 번 수집해서 보내기
 //   node agent/index.mjs --dry-run  보내지 않고 무엇이 수집되는지만 보기
 //   node agent/index.mjs --watch    AGENT_INTERVAL(기본 120초)마다 계속 실행
+//   node agent/index.mjs --check    대시보드 연결과 저장소 확인
 import { statSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { collectClaude } from "./collectors/claude.mjs";
@@ -15,6 +16,7 @@ const VERSION = "1.0.0";
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
 const WATCH = args.has("--watch");
+const CHECK = args.has("--check");
 
 const log = (msg) => console.log(`[${kstStamp()}] ${msg}`);
 
@@ -128,8 +130,28 @@ function trimLog(config) {
   }
 }
 
+// 대시보드 주소·토큰이 맞는지, 저장소가 어디인지 확인한다.
+async function check(config) {
+  if (!config.ingestToken) throw new Error("INGEST_TOKEN이 없어요. agent/.env 를 확인하세요.");
+  const res = await fetch(`${config.dashboardUrl}/api/ingest/usage`, {
+    headers: { authorization: `Bearer ${config.ingestToken}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${config.dashboardUrl} 응답 ${res.status}: ${body.error ?? "알 수 없는 오류"}`);
+  const storage = body.storage === "redis" ? "Upstash Redis" : body.persistent ? "로컬 파일" : "임시 저장소(데이터가 사라질 수 있음)";
+  console.log(`연결 성공: ${config.dashboardUrl}`);
+  console.log(`저장소: ${storage}`);
+  for (const h of body.hosts ?? []) console.log(`마지막 보고: ${h.host} (${kstStamp(Date.parse(h.collectedAt))})`);
+  if (!body.hosts?.length) console.log("아직 받은 보고가 없어요. npm run agent 로 한 번 보내 보세요.");
+}
+
 async function main() {
   const config = loadConfig();
+  if (CHECK) {
+    await check(config);
+    return;
+  }
   trimLog(config);
   if (!WATCH) {
     await runOnce(config);

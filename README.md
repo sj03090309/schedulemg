@@ -71,6 +71,7 @@ npm run dev                  # http://localhost:3300
 cp agent/.env.example agent/.env   # DASHBOARD_URL, INGEST_TOKEN 입력
 npm run agent:dry                  # 보내지 않고 무엇이 수집되는지 보기
 npm run agent                      # 한 번 보내기
+npm run agent -- --check           # 대시보드 주소·토큰·저장소(Redis인지) 확인
 bash agent/install-launchd.sh      # 로그인할 때 켜지고 2분마다 실행
 bash agent/uninstall-launchd.sh    # 자동 실행 끄기
 ```
