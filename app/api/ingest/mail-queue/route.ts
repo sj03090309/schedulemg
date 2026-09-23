@@ -4,7 +4,7 @@ import { listAccounts } from "@/lib/google/accounts";
 import { fetchMail, fetchMessageText } from "@/lib/google/gmail";
 import { grantedServices } from "@/lib/google/oauth";
 import { checkIngestAuth } from "@/lib/ingest-auth";
-import { insightKey, loadInsights } from "@/lib/mail-insights";
+import { insightKey, isCurrentInsight, loadInsights } from "@/lib/mail-insights";
 import { DAY } from "@/lib/time";
 
 const MAX_ITEMS = 15;
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       // 대시보드와 같은 캐시 키를 써서 Gmail 호출을 나눠 쓴다.
       const box = await cached(`g:${account.email}:mail`, 60_000, () => fetchMail(account));
       const todo = box.items
-        .filter((m) => !insights[insightKey(account.email, m.id)] && now - Date.parse(m.date) < 2 * DAY)
+        .filter((m) => !isCurrentInsight(insights[insightKey(account.email, m.id)]) && now - Date.parse(m.date) < 2 * DAY)
         .slice(0, MAX_ITEMS);
       const withBody = await mapLimit(todo, 4, async (m) => ({
         key: insightKey(account.email, m.id),

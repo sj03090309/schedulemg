@@ -1,5 +1,5 @@
 import { checkIngestAuth, readJsonBody } from "@/lib/ingest-auth";
-import { parseDue, saveInsights, type MailInsight } from "@/lib/mail-insights";
+import { INSIGHT_VERSION, parseDue, saveInsights, type MailInsight } from "@/lib/mail-insights";
 import { clampText } from "@/lib/text";
 
 // 맥 에이전트가 Claude로 만든 메일 중요도·요약을 저장한다.
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       action: typeof r.action === "string" && r.action.trim() ? clampText(r.action, 80) : null,
       due: parseDue(r.due),
       skipped: r.skipped === true || undefined,
+      v: INSIGHT_VERSION,
       at,
     };
   }

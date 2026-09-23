@@ -116,8 +116,9 @@ async function runOnce(config) {
 
   let mailText = "";
   try {
-    const r = await summarizeMail(config);
+    const r = await summarizeMail(config, claude.limits);
     if (r?.count) mailText = `, 메일 요약 ${r.count}통(챙길 메일 ${r.important}통)`;
+    else if (r?.deferred) mailText = `, 메일 요약 미룸(${r.deferred})`;
     else if (r?.error) mailText = `, 메일 요약 안 됨(${r.error})`;
   } catch (e) {
     mailText = `, 메일 요약 실패(${e?.message ?? e})`;

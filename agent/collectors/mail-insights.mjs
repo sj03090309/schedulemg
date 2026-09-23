@@ -35,7 +35,9 @@ const SCHEMA = {
 };
 
 const SYSTEM = `너는 한국 대학생의 메일 비서야. 메일마다 사용자가 직접 챙겨야 하는지 판단하고 아주 짧게 요약해.
-- important: 교수·학교·학과 공지, 과제·시험·마감, 결제·청구·보안 경고, 배송 문제, 약속·면접처럼 사용자가 읽거나 행동해야 하면 true. 광고, 뉴스레터, 흔한 자동 알림, 단순 정보는 false.
+- important: 사용자가 직접 읽고 행동해야 하는 메일만 true. 예: 교수·학교·학과의 공지와 요청, 과제·시험·마감, 결제 실패·청구·환불, 배송 문제, 약속·면접, 사람이 직접 보낸 질문이나 부탁, 수상한 로그인처럼 확인이 필요한 보안 경고.
+- 다음은 false: 광고, 뉴스레터, 서비스 소식, 영수증·결제 완료 안내, 배포·빌드·깃허브 같은 개발 도구 알림, 사용자가 방금 한 로그인·앱 권한 부여·비밀번호 변경을 알려 주는 일반 보안 알림, 단순 정보.
+- 애매하면 false. 챙겨야 할 메일은 보통 전체의 절반보다 훨씬 적어.
 - summary: 한국어 한 문장, 60자 안팎, 핵심과 해야 할 일 중심, "~해요" 말투.
 - action: 사용자가 해야 할 일이 있으면 20자 안팎(예: "과제 zip으로 제출"), 없으면 null.
 - due: 마감이나 약속 시각이 메일에 있으면 "YYYY-MM-DDTHH:mm+09:00", 날짜만 있으면 그날 23:59, 없으면 null.
@@ -83,8 +85,16 @@ function runClaude(bin, args, cwd, timeoutMs) {
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (code === 0) resolve(out);
-      else reject(new Error(`claude 종료 코드 ${code}: ${err.trim().slice(0, 160)}`));
+      if (code === 0) return resolve(out);
+      // --output-format json은 실패해도 stdout에 이유(result)를 남긴다.
+      let reason = err.trim();
+      try {
+        const j = JSON.parse(out);
+        reason = String(j.result ?? j.subtype ?? reason);
+      } catch {
+        reason = reason || out.trim();
+      }
+      reject(new Error(`claude 종료 코드 ${code}: ${reason.replace(/\s+/g, " ").slice(0, 160)}`));
     });
   });
 }
@@ -99,11 +109,19 @@ function extractMails(text) {
   }
 }
 
-export async function summarizeMail(config) {
+/**
+ * claudeLimits: 같은 실행에서 읽은 Claude 한도. 5시간 한도가 거의 찼으면 요약을 미뤄
+ * 사용자가 직접 쓸 사용량을 남겨 둔다.
+ */
+export async function summarizeMail(config, claudeLimits = null) {
   if (!config.mailSummary) return null;
   const stateFile = path.join(config.stateDir, "mail-summary.json");
   const state = readJSON(stateFile, {});
   if (state.backoffUntil && Date.now() < state.backoffUntil) return { skipped: true };
+  const busy = (claudeLimits?.windows ?? []).find(
+    (w) => w.usedPercent >= 90 && (!w.resetsAt || Date.parse(w.resetsAt) > Date.now()),
+  );
+  if (busy) return { deferred: `Claude ${busy.label} 한도 ${Math.round(busy.usedPercent)}%` };
 
   const headers = { authorization: `Bearer ${config.ingestToken}` };
   const queue = await fetch(`${config.dashboardUrl}/api/ingest/mail-queue`, { headers, signal: AbortSignal.timeout(60_000) });
@@ -142,7 +160,13 @@ export async function summarizeMail(config) {
     if (result.is_error) throw new Error(String(result.result ?? "Claude 오류").slice(0, 160));
     mails = Array.isArray(result.structured_output?.mails) ? result.structured_output.mails : extractMails(result.result);
   } catch (e) {
-    writeJSON(stateFile, { backoffUntil: Date.now() + BACKOFF, lastError: e.message });
+    // 사용량 한도에 걸렸으면 5시간 창이 초기화될 때까지 기다린다.
+    const limited = /limit|한도|rate/i.test(e.message);
+    const reset = (claudeLimits?.windows ?? [])
+      .map((w) => Date.parse(w.resetsAt ?? ""))
+      .filter((t) => Number.isFinite(t) && t > Date.now())
+      .sort((a, b) => a - b)[0];
+    writeJSON(stateFile, { backoffUntil: limited && reset ? reset + 60_000 : Date.now() + BACKOFF, lastError: e.message });
     throw e;
   }
 
