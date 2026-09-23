@@ -44,3 +44,8 @@ next-env.d.ts
 /.data/
 !.env.example
 !agent/.env.example
+
+# Upstash agent skills installed by `vercel integration add` (tooling docs, not app code)
+/.agents/
+/.claude/skills/
+/skills-lock.json
