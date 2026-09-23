@@ -62,6 +62,7 @@ export function loadConfig() {
     host: get("AGENT_HOST_NAME") || computerName(),
     hostId: machineId(),
     liveLimits: get("AGENT_LIVE_LIMITS") !== "0",
+    refreshClaudeLogin: get("AGENT_REFRESH_CLAUDE_LOGIN") !== "0",
     macNotifications: get("AGENT_MAC_NOTIFICATIONS") !== "0",
     intervalSec: Math.max(30, Number(get("AGENT_INTERVAL")) || 120),
     stateDir,

@@ -1,8 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { forEachLine, listFiles, readJSON, writeJSON } from "../lib/files.mjs";
 import { DAY, HOUR, kstDateKey, kstDayStart } from "../lib/time.mjs";
 
@@ -10,6 +11,8 @@ import { DAY, HOUR, kstDateKey, kstDayStart } from "../lib/time.mjs";
 const RETENTION_DAYS = 35;
 const CACHE_VERSION = 2;
 const LIMITS_TTL = 5 * 60 * 1000;
+const REFRESH_COOLDOWN = 30 * 60 * 1000;
+const execFileAsync = promisify(execFile);
 
 function projectDirs() {
   const dirs = new Set();
@@ -162,8 +165,11 @@ async function claudeLimits(config) {
   const cached = readJSON(stateFile, null);
   if (cached?.fetchedAt && Date.now() - Date.parse(cached.fetchedAt) < LIMITS_TTL) return cached;
 
-  const cred = readCredentials();
+  let cred = readCredentials();
   if (!cred?.accessToken) throw new Error("Claude Code 로그인 정보를 찾지 못했어요. 터미널에서 claude로 로그인했는지 확인하세요.");
+  if (cred.expiresAt && cred.expiresAt < Date.now() + 5 * 60 * 1000 && config.refreshClaudeLogin) {
+    if (await refreshViaCli(config)) cred = readCredentials() ?? cred;
+  }
   if (cred.expiresAt && cred.expiresAt < Date.now()) {
     throw new Error("Claude Code CLI 로그인 토큰이 만료됐어요. 터미널에서 claude를 한 번 실행하면 갱신돼요.");
   }
@@ -194,6 +200,64 @@ async function claudeLimits(config) {
   const limits = { source: "Claude 계정 사용량", fetchedAt: new Date().toISOString(), plan: cred.subscriptionType ?? null, windows };
   writeJSON(stateFile, limits);
   return limits;
+}
+
+function findClaudeBinary() {
+  const candidates = [
+    process.env.CLAUDE_BIN,
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+    path.join(homedir(), ".local", "bin", "claude"),
+    path.join(homedir(), ".claude", "local", "claude"),
+  ];
+  return candidates.find((p) => p && existsSync(p)) ?? null;
+}
+
+/**
+ * 데스크톱 앱만 쓰면 CLI 로그인 토큰이 갱신되지 않아 한도 조회가 멈춘다.
+ * 그래서 CLI를 없는 모델 이름으로 한 번 실행한다: CLI가 스스로 토큰을 갱신해 키체인에 저장하고,
+ * 모델 호출은 바로 실패하므로 사용량은 쓰지 않는다. 토큰을 직접 다루지 않고 CLI에 맡긴다.
+ */
+async function refreshViaCli(config) {
+  const stateFile = path.join(config.stateDir, "claude-refresh.json");
+  const last = readJSON(stateFile, {}).at ?? 0;
+  if (Date.now() - last < REFRESH_COOLDOWN) return false;
+  writeJSON(stateFile, { at: Date.now() });
+  const bin = findClaudeBinary();
+  if (!bin) return false;
+
+  const cwd = path.join(config.stateDir, "claude-refresh");
+  mkdirSync(cwd, { recursive: true });
+  try {
+    await execFileAsync(bin, ["-p", "ping", "--model", "schedulemg-token-refresh", "--max-turns", "1"], {
+      cwd,
+      timeout: 60_000,
+      env: {
+        HOME: homedir(),
+        USER: process.env.USER ?? "",
+        LOGNAME: process.env.LOGNAME ?? process.env.USER ?? "",
+        PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+        TERM: "dumb",
+      },
+    });
+  } catch {
+    // 없는 모델이라 오류로 끝나는 게 정상이다.
+  }
+  cleanRefreshSessions(cwd);
+  return true;
+}
+
+// 갱신용 실행이 남긴 세션 기록은 하루가 지나면 지운다 (이 전용 폴더만 건드린다).
+function cleanRefreshSessions(cwd) {
+  const dir = path.join(homedir(), ".claude", "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
+  try {
+    for (const name of readdirSync(dir)) {
+      const file = path.join(dir, name);
+      if (name.endsWith(".jsonl") && Date.now() - statSync(file).mtimeMs > DAY) rmSync(file, { force: true });
+    }
+  } catch {
+    // 폴더가 없으면 넘어간다.
+  }
 }
 
 function readCredentials() {

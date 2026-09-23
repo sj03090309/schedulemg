@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { listAccounts, rememberAccessToken, saveAccount } from "@/lib/google/accounts";
 import { exchangeCode, fetchUserInfo, redirectUriFor } from "@/lib/google/oauth";
 import { OAUTH_COOKIE_PATH, OAUTH_STATE_COOKIE, decodeState } from "@/lib/oauth-state";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "@/lib/session-token";
+import { SESSION_COOKIE, sessionCookieOptions, signSession, verifySession } from "@/lib/session-token";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -54,13 +54,7 @@ export async function GET(request: NextRequest) {
 
     const res = finish(saved.mode === "link" ? "/settings?linked=1#google" : "/");
     if (saved.mode === "login") {
-      res.cookies.set(SESSION_COOKIE, await signSession(user.email), {
-        httpOnly: true,
-        secure,
-        sameSite: "lax",
-        path: "/",
-        maxAge: SESSION_MAX_AGE,
-      });
+      res.cookies.set(SESSION_COOKIE, await signSession(user.email), sessionCookieOptions(secure));
     }
     return res;
   } catch (e) {
