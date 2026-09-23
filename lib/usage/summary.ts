@@ -66,6 +66,8 @@ export interface UsageView {
   fx: FxRate;
   hasAgent: boolean;
   lastReportAt: string | null;
+  /** 가장 최근 보고 기준 맥 알림 수집 상태 */
+  macNotifications: { host: string; available: boolean; error: string | null } | null;
 }
 
 const NAMES: Record<Provider, string> = { claude: "Claude", codex: "Codex" };
@@ -247,11 +249,15 @@ export function summarizeUsage(reports: StoredUsageReport[], fx: FxRate, now: Da
   const lastReportAt = reports.length
     ? reports.map((r) => r.collectedAt).sort().at(-1) ?? null
     : null;
+  const newest = [...reports].sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0];
   return {
     claude: summarizeProvider("claude", reports, fx, now),
     codex: summarizeProvider("codex", reports, fx, now),
     fx,
     hasAgent: reports.length > 0,
     lastReportAt,
+    macNotifications: newest?.macNotifications
+      ? { host: newest.host, available: newest.macNotifications.available, error: newest.macNotifications.error ?? null }
+      : null,
   };
 }

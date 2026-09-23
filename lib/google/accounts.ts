@@ -13,8 +13,17 @@ export interface GoogleAccount {
   refreshToken: string;
   scope: string;
   addedAt: string;
+  /** 지금 refresh token을 받은 시각 */
+  tokenIssuedAt?: string;
   needsReauth?: boolean;
   lastError?: string;
+}
+
+// Google 앱을 '프로덕션'으로 게시한 시각. 그 전(테스트 모드)에 받은 refresh token은 7일 뒤 만료되므로 한 번 다시 받아야 한다.
+const PUBLISHED_AT = "2026-09-23T15:50:00.000Z";
+
+export function needsRegrant(account: Pick<GoogleAccount, "tokenIssuedAt" | "needsReauth">): boolean {
+  return !account.needsReauth && (!account.tokenIssuedAt || account.tokenIssuedAt < PUBLISHED_AT);
 }
 
 /** 여러 계정의 항목을 한 목록에 섞어 보여 줄 때 쓰는 표시 정보. slot은 계정 색 순서(0부터). */

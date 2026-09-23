@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
       refreshToken,
       scope: tokens.scope,
       addedAt: existing?.addedAt ?? new Date().toISOString(),
+      // refresh token을 새로 받았을 때만 발급 시각을 바꾼다.
+      tokenIssuedAt: tokens.refresh_token ? new Date().toISOString() : existing?.tokenIssuedAt,
     });
     rememberAccessToken(user.email, tokens.access_token, tokens.expires_in);
     clearCached(`g:${user.email}:`);

@@ -82,5 +82,8 @@ export function sanitizeReport(v: unknown): UsageReport | null {
     agentVersion: str(v.agentVersion, 20) || undefined,
     claude: snapshot(v.claude),
     codex: snapshot(v.codex),
+    macNotifications: isObj(v.macNotifications)
+      ? { available: v.macNotifications.available === true, error: str(v.macNotifications.error, 300) || null }
+      : null,
   };
 }

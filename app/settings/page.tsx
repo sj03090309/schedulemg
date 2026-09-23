@@ -14,7 +14,7 @@ import { CopyButton, SecretField } from "@/components/client/secret-field";
 import { SunMark } from "@/components/ui";
 import { getAccounts } from "@/lib/dashboard-data";
 import { env, isGoogleConfigured } from "@/lib/env";
-import { accountTags } from "@/lib/google/accounts";
+import { accountTags, needsRegrant } from "@/lib/google/accounts";
 import { ALL_SERVICES, SERVICE_LABELS, grantedServices } from "@/lib/google/oauth";
 import { DEFAULT_RULES, getRules } from "@/lib/notifications";
 import { requireSession } from "@/lib/session";
@@ -105,6 +105,12 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
                           <p className="flex items-start gap-1.5 text-[13px] text-critical">
                             <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                             {a.lastError ?? "다시 연결해야 해요."}
+                          </p>
+                        )}
+                        {needsRegrant(a) && (
+                          <p className="flex items-start gap-1.5 text-[13px] text-warning-ink">
+                            <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                            테스트 모드에서 받은 권한이라 7일 뒤 만료돼요. ‘권한 다시 받기’를 한 번 눌러 주세요.
                           </p>
                         )}
                         <div className="flex flex-wrap items-center gap-2">

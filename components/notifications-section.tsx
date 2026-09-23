@@ -1,10 +1,10 @@
 import { Check, ChevronDown, EyeOff, Flag, Laptop, Smartphone, Bell } from "lucide-react";
 import { notificationAction } from "@/app/actions";
-import { loadNotifications } from "@/lib/dashboard-data";
+import { loadNotifications, loadUsage } from "@/lib/dashboard-data";
 import type { NotificationItem } from "@/lib/notifications";
 import { DAY, formatRelative } from "@/lib/time";
 import { PendingButton } from "./client/pending-button";
-import { Empty, Notice, Section } from "./ui";
+import { Empty, Notice, Section, Warnings } from "./ui";
 
 const SOURCE = {
   mac: { icon: Laptop, label: "맥" },
@@ -15,7 +15,12 @@ const SOURCE = {
 } as const;
 
 export async function NotificationsSection({ demo }: { demo: boolean }) {
-  const notes = await loadNotifications(demo);
+  const [notes, usage] = await Promise.all([loadNotifications(demo), loadUsage(demo)]);
+  // 맥 에이전트가 알림을 못 읽고 있으면 이유를 먼저 보여 준다.
+  const macProblem =
+    usage.macNotifications && !usage.macNotifications.available && usage.macNotifications.error
+      ? `${usage.macNotifications.host}: ${usage.macNotifications.error}`
+      : null;
   if (notes.status !== "ok") {
     return (
       <Section id="notifications" title="기억할 알림">
@@ -29,10 +34,14 @@ export async function NotificationsSection({ demo }: { demo: boolean }) {
   if (!items.length) {
     return (
       <Section id="notifications" title="기억할 알림">
-        <Notice
-          message="아직 받은 알림이 없어요. 맥 에이전트나 휴대폰 단축어를 연결하면 중요한 알림만 골라 여기에 모아 둘게요."
-          action={{ href: "/settings#phone", label: "연결 방법 보기" }}
-        />
+        {macProblem ? (
+          <Notice tone="error" message={`맥 알림을 읽지 못하고 있어요. ${macProblem}`} action={{ href: "/settings#agent", label: "해결 방법 보기" }} />
+        ) : (
+          <Notice
+            message="아직 받은 알림이 없어요. 맥 에이전트나 휴대폰 단축어를 연결하면 중요한 알림만 골라 여기에 모아 둘게요."
+            action={{ href: "/settings#phone", label: "연결 방법 보기" }}
+          />
+        )}
       </Section>
     );
   }
@@ -44,6 +53,7 @@ export async function NotificationsSection({ demo }: { demo: boolean }) {
 
   return (
     <Section id="notifications" title="기억할 알림" count={important.length}>
+      {macProblem && <Warnings items={[`맥 알림을 읽지 못하고 있어요. ${macProblem}`]} />}
       {important.length === 0 ? (
         <Empty>새로 기억할 알림이 없어요.</Empty>
       ) : (

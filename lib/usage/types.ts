@@ -58,6 +58,8 @@ export interface UsageReport {
   agentVersion?: string;
   claude?: ProviderSnapshot | null;
   codex?: ProviderSnapshot | null;
+  /** 맥 알림 수집 상태 (못 읽으면 이유) */
+  macNotifications?: { available: boolean; error?: string | null } | null;
 }
 
 export interface StoredUsageReport extends UsageReport {

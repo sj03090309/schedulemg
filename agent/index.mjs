@@ -85,6 +85,8 @@ async function runOnce(config) {
     agentVersion: VERSION,
     claude,
     codex,
+    // 알림을 못 읽고 있으면 대시보드에 이유를 보여 주기 위해 상태만 같이 보낸다.
+    macNotifications: notes ? { available: notes.available, error: notes.error ?? null } : null,
   };
 
   if (DRY_RUN) {
@@ -110,11 +112,14 @@ async function runOnce(config) {
     noteResult = await send(config, "/api/ingest/notifications", { notifications: notes.items });
   }
   notes?.commit?.();
-  log(
-    `보냄: Claude ${claude.available ? "O" : "X"}, Codex ${codex.available ? "O" : "X"}, 맥 알림 ${notes?.items?.length ?? 0}건` +
-      (noteResult ? ` (기억할 알림 ${noteResult.important ?? 0}건)` : "") +
-      ` (${Date.now() - started}ms)`,
-  );
+  const part = (name, snap) =>
+    `${name} ${snap.available ? (snap.limits ? "O" : `O, 한도 없음(${snap.limitsError ?? "기록 없음"})`) : `X(${snap.error})`}`;
+  const noteText = !notes
+    ? "맥 알림 끔"
+    : notes.available
+      ? `맥 알림 ${notes.items.length}건${noteResult ? `(기억할 알림 ${noteResult.important ?? 0}건)` : ""}`
+      : `맥 알림 읽기 실패(${notes.error})`;
+  log(`보냄: ${part("Claude", claude)}, ${part("Codex", codex)}, ${noteText} (${Date.now() - started}ms)`);
 }
 
 // launchd 로그가 끝없이 커지지 않게 2MB를 넘으면 뒷부분만 남긴다.

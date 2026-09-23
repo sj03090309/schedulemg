@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AccountAlerts } from "@/components/account-alerts";
 import { AppHeader, SectionNav } from "@/components/app-header";
 import { BriefingHero, HeroSkeleton } from "@/components/briefing-hero";
 import { CalendarSection } from "@/components/calendar-section";
@@ -25,6 +26,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <>
       <AppHeader now={now} demo={demo} devMode={session.dev} />
       <main className="mx-auto max-w-[1320px] px-4 pb-[calc(env(safe-area-inset-bottom)+56px)] pt-4 sm:px-6 sm:pt-6">
+        <Suspense fallback={null}>
+          <AccountAlerts demo={demo} />
+        </Suspense>
         <Suspense fallback={<HeroSkeleton />}>
           <BriefingHero demo={demo} sky={sky} />
         </Suspense>
