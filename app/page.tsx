@@ -1,69 +1,67 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { AppHeader, SectionNav } from "@/components/app-header";
+import { BriefingHero, HeroSkeleton } from "@/components/briefing-hero";
+import { CalendarSection } from "@/components/calendar-section";
+import { ClassroomSection } from "@/components/classroom-section";
+import { AutoRefresh } from "@/components/client/auto-refresh";
+import { MailSection } from "@/components/mail-section";
+import { NotificationsSection } from "@/components/notifications-section";
+import { RememberSection } from "@/components/remember-section";
+import { SectionSkeleton } from "@/components/ui";
+import { UsageSection } from "@/components/usage-section";
+import { requireSession } from "@/lib/session";
+import type { SkyPhase } from "@/lib/time";
 
-export default function Home() {
+const SKIES: SkyPhase[] = ["dawn", "day", "dusk", "night"];
+
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const session = await requireSession();
+  const params = await searchParams;
+  const demo = params.demo === "1";
+  const sky = demo && typeof params.sky === "string" && SKIES.includes(params.sky as SkyPhase) ? (params.sky as SkyPhase) : undefined;
+  const now = new Date();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <AppHeader now={now} demo={demo} devMode={session.dev} />
+      <main className="mx-auto max-w-[1320px] px-4 pb-[calc(env(safe-area-inset-bottom)+56px)] pt-4 sm:px-6 sm:pt-6">
+        <Suspense fallback={<HeroSkeleton />}>
+          <BriefingHero demo={demo} sky={sky} />
+        </Suspense>
+
+        <div className="mt-4">
+          <SectionNav />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* 휴대폰: 한 줄 / 태블릿: 두 줄 / 넓은 화면: 세 줄 */}
+        <div className="mt-6 grid gap-x-8 gap-y-10 md:mt-8 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-10">
+            <Suspense fallback={<SectionSkeleton id="remember" title="잊지 말 것" rows={4} />}>
+              <RememberSection demo={demo} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton id="calendar" title="오늘 일정" />}>
+              <CalendarSection demo={demo} />
+            </Suspense>
+          </div>
+          <div className="min-w-0 space-y-10">
+            <Suspense fallback={<SectionSkeleton id="classroom" title="과제" />}>
+              <ClassroomSection demo={demo} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton id="mail" title="메일" rows={4} />}>
+              <MailSection demo={demo} />
+            </Suspense>
+          </div>
+          <div className="min-w-0 space-y-10 md:col-span-2 xl:col-span-1">
+            <Suspense fallback={<SectionSkeleton id="notifications" title="기억할 알림" />}>
+              <NotificationsSection demo={demo} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton id="ai" title="AI 사용량" rows={2} />}>
+              <UsageSection demo={demo} />
+            </Suspense>
+          </div>
         </div>
       </main>
-    </div>
+      <AutoRefresh />
+    </>
   );
 }

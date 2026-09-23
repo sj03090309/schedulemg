@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local data (file store) and agent secrets
+/.data/
+!.env.example
+!agent/.env.example

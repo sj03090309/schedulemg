@@ -1,26 +1,188 @@
 @import "tailwindcss";
 
+/* 아침 안개 같은 바탕 위에 잉크색 글자. 급한 것(마감)만 빨강, 지금 시각은 해 색. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  color-scheme: light;
+  --paper: #eef1f0;
+  --surface: #ffffff;
+  --surface-2: #f5f7f6;
+  --ink: #17202b;
+  --ink-2: #475160;
+  --ink-3: #636c79;
+  --line: #dde2e4;
+  --sky: #2f6fd6;
+  --sky-soft: #d5e3fa;
+  --sun: #d98a06;
+  --critical: #d03b3b;
+  --critical-soft: #f8dcdb;
+  --warning: #fab219;
+  --warning-soft: #fcecc6;
+  --warning-ink: #8a5a00;
+  --good: #0ca30c;
+  --good-ink: #17742a;
+  /* 계정 구분 색 (최대 3개 계정, 색각이상 검증된 순서) */
+  --acct-0: #2a78d6;
+  --acct-1: #eb6834;
+  --acct-2: #1baf7a;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --sky-top: #d3e5fb;
+  --sky-bottom: #f3f7fc;
+  --hero-ink: #17202b;
+  --hero-ink-2: #3f4957;
+  --hero-line: rgba(23, 32, 43, 0.14);
+  --hero-track: rgba(255, 255, 255, 0.55);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --paper: #0d1218;
+    --surface: #151c24;
+    --surface-2: #1a222c;
+    --ink: #e7ebf0;
+    --ink-2: #aab3bf;
+    --ink-3: #8a94a2;
+    --line: #26303b;
+    --sky: #6b9cf0;
+    --sky-soft: #1f3050;
+    --sun: #f5b040;
+    --critical: #e66767;
+    --critical-soft: #3d2124;
+    --warning: #fab219;
+    --warning-soft: #3a2f14;
+    --warning-ink: #f7c55c;
+    --good: #3cc13c;
+    --good-ink: #6fd66f;
+    --acct-0: #3987e5;
+    --acct-1: #d95926;
+    --acct-2: #199e70;
+
+    --sky-top: #1a2d48;
+    --sky-bottom: #141d29;
+    --hero-ink: #e9eef5;
+    --hero-ink-2: #b4bfcd;
+    --hero-line: rgba(233, 238, 245, 0.14);
+    --hero-track: rgba(255, 255, 255, 0.06);
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-sun: var(--sun);
+  --color-critical: var(--critical);
+  --color-critical-soft: var(--critical-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-ink-2: var(--hero-ink-2);
+  --color-hero-line: var(--hero-line);
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  /* 한국어는 어절 단위로 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* 히어로: 지금 시간대의 하늘 */
+.hero {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+  color: var(--hero-ink);
+}
+.hero[data-sky="dawn"] {
+  --sky-top: #f6d8c4;
+  --sky-bottom: #e8eff9;
+}
+.hero[data-sky="day"] {
+  --sky-top: #cfe2fa;
+  --sky-bottom: #f2f6fb;
+}
+.hero[data-sky="dusk"] {
+  --sky-top: #e4d0e9;
+  --sky-bottom: #f5e0d0;
+}
+.hero[data-sky="night"] {
+  --sky-top: #1b2745;
+  --sky-bottom: #2a3a5d;
+  --hero-ink: #eef2f8;
+  --hero-ink-2: #c3cde0;
+  --hero-line: rgba(238, 242, 248, 0.18);
+  --hero-track: rgba(255, 255, 255, 0.07);
+}
+@media (prefers-color-scheme: dark) {
+  .hero[data-sky="dawn"] {
+    --sky-top: #3a2a31;
+    --sky-bottom: #172030;
+  }
+  .hero[data-sky="day"] {
+    --sky-top: #1a2d48;
+    --sky-bottom: #141d29;
+  }
+  .hero[data-sky="dusk"] {
+    --sky-top: #33243c;
+    --sky-bottom: #1d1a24;
+  }
+  .hero[data-sky="night"] {
+    --sky-top: #0c1427;
+    --sky-bottom: #141d31;
+  }
+}
+
+/* 페이지를 열 때 한 번, 하루 띠의 일정 블록이 왼쪽부터 그려진다. */
+/* opacity는 건드리지 않는다: 지난 일정을 흐리게 하는 인라인 opacity를 애니메이션이 덮어쓰기 때문 */
+@keyframes ribbon-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.ribbon-block {
+  transform-origin: left center;
+  animation: ribbon-draw 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* details/summary 기본 삼각형 숨김 */
+summary::-webkit-details-marker {
+  display: none;
+}
+summary {
+  list-style: none;
 }
