@@ -1,7 +1,9 @@
-import { ChevronDown, Megaphone, TriangleAlert } from "lucide-react";
-import { getAccountTags, loadClassroom } from "@/lib/dashboard-data";
+import { ChevronDown, Mail, Megaphone, TriangleAlert } from "lucide-react";
+import { getAccountTags, loadClassroom, loadMail } from "@/lib/dashboard-data";
+import { isGoogleConfigured } from "@/lib/env";
 import type { AccountTag } from "@/lib/google/accounts";
 import type { Assignment } from "@/lib/google/classroom";
+import type { MailItem } from "@/lib/google/gmail";
 import { DAY, dateKey, formatRelative, formatTime, formatWhen, shiftDateKey } from "@/lib/time";
 import { AccountBadge, Empty, Notice, Section, Warnings } from "./ui";
 
@@ -13,12 +15,50 @@ interface Group {
 }
 
 export async function ClassroomSection({ demo }: { demo: boolean }) {
-  const [classroom, tags] = await Promise.all([loadClassroom(demo), getAccountTags(demo)]);
+  const [classroom, tags, mail] = await Promise.all([loadClassroom(demo), getAccountTags(demo), loadMail(demo)]);
   const aside = (
     <a href="https://classroom.google.com/a/not-turned-in/all" target="_blank" rel="noreferrer" className="text-[13px] font-medium text-sky hover:underline">
       클래스룸 열기
     </a>
   );
+
+  if (classroom.status === "setup" && isGoogleConfigured()) {
+    // 학교 계정처럼 클래스룸 권한을 줄 수 없는 경우: 메일에서 Claude가 찾은 마감을 대신 보여 준다.
+    const now = new Date();
+    const fromMail = mail.status === "ok" ? mailDeadlines(mail.data.items, now) : [];
+    return (
+      <Section id="classroom" title="과제" count={fromMail.length || null} aside={aside}>
+        {fromMail.length > 0 && (
+          <>
+            <h3 className="mb-1 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-ink-2">
+              <Mail className="size-3.5" aria-hidden />
+              메일에서 찾은 마감
+            </h3>
+            <ul className="mb-4 divide-y divide-line">
+              {fromMail.map((m) => (
+                <li key={`${m.account}:${m.id}`} className="py-2.5">
+                  <a href={m.link} target="_blank" rel="noreferrer" className="block text-[15px] font-medium leading-snug text-ink hover:underline">
+                    {m.insight?.action ?? m.subject}
+                  </a>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-3">
+                    <span className={m.urgent ? "font-semibold text-critical" : "font-medium text-ink-2"}>{m.dueLabel}</span>
+                    <span className="min-w-0 break-words">{m.insight?.summary}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="px-1 text-[13px] leading-relaxed text-ink-3">
+          클래스룸 권한이 있는 계정이 없어요. 학교 계정은 학교에서 외부 앱을 막아 둔 경우가 많아요. 학교 Gmail의 클래스룸 알림 메일을 개인
+          Gmail로 자동 전달하면, 메일에서 과제와 마감을 찾아 여기와 ‘잊지 말 것’에 보여 드려요.{" "}
+          <a href="/settings#classroom-forward" className="font-medium text-sky hover:underline">
+            전달 설정 방법
+          </a>
+        </p>
+      </Section>
+    );
+  }
 
   if (classroom.status !== "ok") {
     return (
@@ -115,6 +155,24 @@ export async function ClassroomSection({ demo }: { demo: boolean }) {
       )}
     </Section>
   );
+}
+
+/** Claude가 마감을 찾은 중요한 메일 (마감이 지나지 않은 것, 가까운 순) */
+function mailDeadlines(items: MailItem[], now: Date) {
+  const nowMs = now.getTime();
+  return items
+    .filter((m) => m.insight?.important && m.insight.due && Date.parse(m.insight.due) > nowMs - DAY)
+    .map((m) => {
+      const due = new Date(m.insight!.due!);
+      return {
+        ...m,
+        dueLabel: due.getTime() < nowMs ? `${formatWhen(due, now)} 마감 지남` : `${formatWhen(due, now)} 마감`,
+        urgent: due.getTime() - nowMs < DAY,
+        dueMs: due.getTime(),
+      };
+    })
+    .sort((a, b) => a.dueMs - b.dueMs)
+    .slice(0, 8);
 }
 
 function AssignmentRow({ a, now, tag, groupId }: { a: Assignment; now: Date; tag?: AccountTag; groupId: string }) {

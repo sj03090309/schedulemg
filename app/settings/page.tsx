@@ -177,6 +177,26 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           )}
         </Block>
 
+        <Block
+          id="classroom-forward"
+          title="클래스룸 알림을 개인 Gmail로 받기"
+          lead="학교 계정은 학교에서 외부 앱을 막아 두어 클래스룸을 직접 읽지 못할 수 있어요. 그럴 때는 학교 Gmail로 오는 클래스룸 알림 메일을 개인 Gmail로 자동 전달하세요. 메일 요약이 과제와 마감을 찾아 ‘과제’ 칸과 ‘잊지 말 것’에 보여 줘요."
+        >
+          <ol className="list-decimal space-y-2 rounded-2xl bg-surface p-4 pl-9 text-[14px] leading-relaxed text-ink-2 marker:text-ink-3 sm:p-5 sm:pl-10">
+            <li>학교 계정으로 Gmail을 열고 오른쪽 위 톱니바퀴에서 ‘모든 설정 보기’를 누르세요.</li>
+            <li>‘전달 및 POP/IMAP’ 탭에서 ‘전달 주소 추가’를 누르고 개인 Gmail 주소를 넣으세요.</li>
+            <li>개인 Gmail로 온 확인 메일의 링크를 누르세요.</li>
+            <li>
+              ‘필터 및 차단된 주소’ 탭에서 ‘새 필터 만들기’를 누르고, 보낸사람에 <Code>classroom.google.com</Code> 을 넣은 뒤 ‘다음 주소로
+              전달하기’에서 개인 Gmail을 고르세요.
+            </li>
+          </ol>
+          <p className="text-[13px] leading-relaxed text-ink-3">
+            ‘전달 주소 추가’가 보이지 않으면 학교에서 자동 전달도 막아 둔 거예요. 그때는 휴대폰 클래스룸 앱 알림이 맥 알림 센터에 뜨도록(iPhone 미러링)
+            해 두면 ‘기억할 알림’으로 모여요. 개인 계정에도 수업이 있다면 위 목록에서 ‘권한 다시 받기’를 누르고 클래스룸 항목까지 체크하세요.
+          </p>
+        </Block>
+
         <Block id="agent" title="맥 에이전트" lead="맥에서 2분마다 Claude Code와 Codex 사용 기록, 남은 한도, 맥 알림을 모아 이 대시보드로 보내요. 로그인 정보는 맥 밖으로 나가지 않고, 계산된 숫자만 보내요.">
           {reports.length > 0 ? (
             <ul className="divide-y divide-line rounded-2xl bg-surface">
