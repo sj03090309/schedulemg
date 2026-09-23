@@ -202,7 +202,7 @@ async function claudeLimits(config) {
   return limits;
 }
 
-function findClaudeBinary() {
+export function findClaudeBinary() {
   const candidates = [
     process.env.CLAUDE_BIN,
     "/opt/homebrew/bin/claude",

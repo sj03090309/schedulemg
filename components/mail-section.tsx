@@ -1,5 +1,5 @@
 import { getAccountTags, loadMail } from "@/lib/dashboard-data";
-import { dayDiff, formatShortDate, formatTime } from "@/lib/time";
+import { DAY, dayDiff, formatShortDate, formatTime, formatWhen } from "@/lib/time";
 import { MailList, type MailAccount, type MailRow } from "./client/mail-list";
 import { Notice, Section, Warnings } from "./ui";
 
@@ -24,19 +24,26 @@ export async function MailSection({ demo }: { demo: boolean }) {
   const rows: MailRow[] = mail.data.items.map((m) => {
     const date = new Date(m.date);
     const diff = dayDiff(date, now);
+    const due = m.insight?.due ? new Date(m.insight.due) : null;
     return {
       id: m.id,
       account: m.account,
       from: m.from,
       subject: m.subject,
-      snippet: m.snippet,
+      snippet: m.insight?.summary || m.snippet,
       timeLabel: diff === 0 ? formatTime(date) : diff === -1 ? "어제" : formatShortDate(date),
       unread: m.unread,
       important: m.important,
       starred: m.starred,
       link: m.link,
+      highlight: Boolean(m.insight?.important),
+      summarized: Boolean(m.insight),
+      action: m.insight?.action ?? null,
+      dueLabel: due ? (due.getTime() < now.getTime() ? "마감 지남" : `${formatWhen(due, now)} 마감`) : null,
+      dueUrgent: due ? due.getTime() - now.getTime() < DAY : false,
     };
   });
+  const anySummary = rows.some((r) => r.summarized);
   const accounts: MailAccount[] = Object.values(tags)
     .filter((t) => mail.data.unreadByAccount[t.email] !== undefined)
     .map((t) => ({ ...t, unread: mail.data.unreadByAccount[t.email] ?? 0 }));
@@ -50,6 +57,11 @@ export async function MailSection({ demo }: { demo: boolean }) {
     >
       <Warnings items={mail.warnings} />
       <MailList items={rows} accounts={accounts} />
+      {!anySummary && rows.length > 0 && !demo && (
+        <p className="mt-2 px-1 text-[12px] leading-relaxed text-ink-3">
+          맥 에이전트가 켜져 있으면 몇 분 안에 Claude가 중요한 메일을 골라 요약해 드려요.
+        </p>
+      )}
     </Section>
   );
 }

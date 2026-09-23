@@ -1,7 +1,15 @@
 import { mapLimit } from "../concurrency";
-import { decodeEntities } from "../text";
+import { clampText, decodeEntities } from "../text";
 import type { GoogleAccount } from "./accounts";
 import { gget } from "./client";
+
+/** 맥 에이전트(Claude)가 만든 요약. 없으면 아직 요약 전이다. */
+export interface MailInsightView {
+  important: boolean;
+  summary: string;
+  action: string | null;
+  due: string | null;
+}
 
 export interface MailItem {
   id: string;
@@ -17,6 +25,7 @@ export interface MailItem {
   starred: boolean;
   category: string;
   link: string;
+  insight?: MailInsightView;
 }
 
 export interface MailBox {
@@ -57,6 +66,46 @@ export async function fetchMail(account: GoogleAccount): Promise<MailBox> {
     items: messages.map((m) => toMailItem(account.email, m)),
     inboxUnread: inbox.messagesUnread ?? 0,
   };
+}
+
+interface Part {
+  mimeType?: string;
+  body?: { data?: string };
+  parts?: Part[];
+}
+
+function findPart(part: Part | undefined, mime: string): Part | undefined {
+  if (!part) return undefined;
+  if (part.mimeType === mime && part.body?.data) return part;
+  for (const p of part.parts ?? []) {
+    const found = findPart(p, mime);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|tr|li|h\d)>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  );
+}
+
+/** 요약에 쓸 본문 텍스트. 인용된 이전 메일 아래는 잘라낸다. */
+export async function fetchMessageText(account: GoogleAccount, id: string, max = 1500): Promise<string> {
+  const m = await gget<{ snippet?: string; payload?: Part }>(account, `${BASE}/messages/${id}?format=full`);
+  const plain = findPart(m.payload, "text/plain");
+  const html = plain ? undefined : findPart(m.payload, "text/html");
+  const raw = plain
+    ? Buffer.from(plain.body!.data!, "base64url").toString("utf8")
+    : html
+      ? htmlToText(Buffer.from(html.body!.data!, "base64url").toString("utf8"))
+      : decodeEntities(m.snippet ?? "");
+  const body = raw.split(/\n\s*(?:On .{0,200}wrote:|\d{4}년 .{0,80}작성:|-{2,}\s*Original Message|-{5,})/)[0];
+  return clampText(body, max);
 }
 
 function header(m: MessageResponse, name: string): string {

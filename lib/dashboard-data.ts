@@ -18,6 +18,7 @@ import { fetchClassroom, type ClassroomData } from "./google/classroom";
 import { describeGoogleError } from "./google/client";
 import { fetchMail, type MailItem } from "./google/gmail";
 import { grantedServices, type GoogleService } from "./google/oauth";
+import { insightKey, loadInsights, type MailInsight } from "./mail-insights";
 import { listMemos, type Memo } from "./memos";
 import { listNotifications, type NotificationItem } from "./notifications";
 import { josa } from "./text";
@@ -111,7 +112,17 @@ export const loadMail = cache(async (demo: boolean): Promise<Section<MailData>> 
   if (r.status !== "ok") return r;
   const unreadByAccount: Record<string, number> = {};
   for (const d of r.data) unreadByAccount[d.account] = d.value.inboxUnread;
-  const items = r.data.flatMap((d) => d.value.items).sort((a, b) => b.date.localeCompare(a.date));
+  // 맥 에이전트가 Claude로 만든 중요도·요약을 붙인다. 캐시된 객체는 건드리지 않고 복사한다.
+  const insights = await loadInsights().catch(() => ({}) as Record<string, MailInsight>);
+  const items = r.data
+    .flatMap((d) => d.value.items)
+    .map((m) => {
+      const ins = insights[insightKey(m.account, m.id)];
+      return ins && !ins.skipped
+        ? { ...m, insight: { important: ins.important, summary: ins.summary, action: ins.action, due: ins.due } }
+        : m;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
   return ok(
     { items, unreadByAccount, totalUnread: Object.values(unreadByAccount).reduce((s, n) => s + n, 0) },
     r.warnings,

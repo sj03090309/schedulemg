@@ -95,9 +95,27 @@ export function buildBriefing(input: BriefingInput): Briefing {
   const dueToday = pending.filter((a) => dueMs(a) >= nowMs && dateKey(new Date(dueMs(a))) === today).sort(byDue);
   const dueTomorrow = pending.filter((a) => dateKey(new Date(dueMs(a))) === tomorrow).sort(byDue);
 
-  const importantMail = (input.mail ?? []).filter(
-    (m) => m.unread && (m.important || m.starred) && nowMs - Date.parse(m.date) < DAY && !isChecked(`mail:${m.id}`),
-  );
+  // Claude 요약이 있으면 그 판단을 따르고, 없으면 Gmail의 중요 표시를 쓴다.
+  // 마감이 남은 중요 메일은 읽었어도 마감 전까지 남겨 둔다.
+  const mailDue = (m: MailItem) => (m.insight?.due ? Date.parse(m.insight.due) : NaN);
+  const importantMail = (input.mail ?? [])
+    .filter((m) => {
+      if (isChecked(`mail:${m.id}`)) return false;
+      const age = nowMs - Date.parse(m.date);
+      if (m.insight) {
+        if (!m.insight.important) return false;
+        const due = mailDue(m);
+        if (Number.isFinite(due) && due > nowMs && due - nowMs < 7 * DAY) return true;
+        return m.unread && age < 3 * DAY;
+      }
+      return m.unread && (m.important || m.starred) && age < DAY;
+    })
+    .sort((a, b) => {
+      const da = mailDue(a);
+      const db = mailDue(b);
+      if (Number.isFinite(da) || Number.isFinite(db)) return (Number.isFinite(da) ? da : Infinity) - (Number.isFinite(db) ? db : Infinity);
+      return b.date.localeCompare(a.date);
+    });
   const notes = (input.notifications ?? []).filter((n) => n.status === "open" && n.importance === "high");
   const memos = (input.memos ?? []).filter((m) => !m.doneAt && (!m.date || m.date <= today));
   const upcomingMemos = (input.memos ?? []).filter((m) => !m.doneAt && m.date && m.date > today);
@@ -137,7 +155,12 @@ export function buildBriefing(input: BriefingInput): Briefing {
   } else if (dueTomorrow.length) {
     lines.push(`내일 마감인 과제가 ${dueTomorrow.length}개 있어요.`);
   }
-  if (importantMail.length) lines.push(`읽지 않은 중요 메일이 ${importantMail.length}통 있어요.`);
+  if (importantMail.length) {
+    const top = importantMail[0];
+    lines.push(
+      `챙겨야 할 메일이 ${importantMail.length}통 있어요.${top.insight?.summary ? ` ‘${top.subject}’: ${top.insight.summary}` : ""}`,
+    );
+  }
   if (notes.length && memos.length) lines.push(`기억할 알림 ${notes.length}개와 메모 ${memos.length}개가 있어요.`);
   else if (notes.length) lines.push(`기억할 알림이 ${notes.length}개 있어요.`);
   else if (memos.length) lines.push(`오늘 챙길 메모가 ${memos.length}개 있어요.`);
@@ -197,13 +220,15 @@ export function buildBriefing(input: BriefingInput): Briefing {
     });
   }
   for (const m of importantMail) {
+    const due = mailDue(m);
+    const hasDue = Number.isFinite(due);
     items.push({
       key: `mail:${m.id}`,
       kind: "mail",
-      tone: "normal",
+      tone: hasDue && due - nowMs < DAY ? "urgent" : hasDue ? "soon" : "normal",
       title: m.subject,
-      context: m.from,
-      when: formatTime(new Date(m.date)),
+      context: m.insight?.summary || m.from,
+      when: hasDue ? `${formatWhen(new Date(due), now)} 마감` : formatTime(new Date(m.date)),
       href: m.link,
       account: m.account,
       done: false,
@@ -222,6 +247,10 @@ export function buildBriefing(input: BriefingInput): Briefing {
       toggle: null,
     });
   }
+
+  // 급한 것부터 (같은 급함 안에서는 넣은 순서 유지)
+  const rank = { urgent: 0, soon: 1, normal: 2 } as const;
+  items.sort((a, b) => rank[a.tone] - rank[b.tone]);
 
   // 오늘 끝낸 항목은 아래에 흐리게 남겨 둔다.
   for (const a of input.assignments ?? []) {

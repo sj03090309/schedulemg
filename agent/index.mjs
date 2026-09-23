@@ -9,6 +9,7 @@ import path from "node:path";
 import { collectClaude } from "./collectors/claude.mjs";
 import { collectCodex } from "./collectors/codex.mjs";
 import { collectMacNotifications } from "./collectors/mac-notifications.mjs";
+import { summarizeMail } from "./collectors/mail-insights.mjs";
 import { loadConfig } from "./lib/config.mjs";
 import { kstDateKey, kstStamp } from "./lib/time.mjs";
 
@@ -112,6 +113,16 @@ async function runOnce(config) {
     noteResult = await send(config, "/api/ingest/notifications", { notifications: notes.items });
   }
   notes?.commit?.();
+
+  let mailText = "";
+  try {
+    const r = await summarizeMail(config);
+    if (r?.count) mailText = `, 메일 요약 ${r.count}통(챙길 메일 ${r.important}통)`;
+    else if (r?.error) mailText = `, 메일 요약 안 됨(${r.error})`;
+  } catch (e) {
+    mailText = `, 메일 요약 실패(${e?.message ?? e})`;
+  }
+
   const part = (name, snap) =>
     `${name} ${snap.available ? (snap.limits ? "O" : `O, 한도 없음(${snap.limitsError ?? "기록 없음"})`) : `X(${snap.error})`}`;
   const noteText = !notes
@@ -119,7 +130,7 @@ async function runOnce(config) {
     : notes.available
       ? `맥 알림 ${notes.items.length}건${noteResult ? `(기억할 알림 ${noteResult.important ?? 0}건)` : ""}`
       : `맥 알림 읽기 실패(${notes.error})`;
-  log(`보냄: ${part("Claude", claude)}, ${part("Codex", codex)}, ${noteText} (${Date.now() - started}ms)`);
+  log(`보냄: ${part("Claude", claude)}, ${part("Codex", codex)}, ${noteText}${mailText} (${Date.now() - started}ms)`);
 }
 
 // launchd 로그가 끝없이 커지지 않게 2MB를 넘으면 뒷부분만 남긴다.
