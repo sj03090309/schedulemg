@@ -96,13 +96,17 @@ bash agent/uninstall-launchd.sh    # 자동 실행 끄기
 ## 배포 (Vercel)
 
 ```bash
-vercel link
-vercel integration add upstash/upstash-kv   # Upstash for Redis → KV_REST_API_URL/TOKEN 자동 추가
+vercel link --yes --project schedulemg
+# Upstash for Redis 무료 요금제, 도쿄 리전, 한도 초과 시 자동 유료 전환 끔 (처음 한 번은 브라우저에서 약관 동의 필요)
+vercel integration add upstash/upstash-kv --plan free -m primaryRegion=hnd1 -m autoUpgrade=false -e production --no-env-pull
 vercel env add GOOGLE_CLIENT_ID production  # 나머지 환경 변수도 같은 방법으로 추가
 vercel deploy --prod
 ```
 
-배포한 뒤 Google 리디렉션 URI에 배포 주소를 추가하고, `agent/.env`의 `DASHBOARD_URL`을 배포 주소로 바꿉니다. 휴대폰에서 열어 ‘홈 화면에 추가’를 하면 앱처럼 쓸 수 있습니다.
+- 서버 함수는 `vercel.json`에서 도쿄(`hnd1`)로 지정했습니다. 한국에서 가깝고 Upstash와 같은 리전이라 빠릅니다.
+- GitHub 저장소를 연결해 두면 `main`에 푸시할 때마다 자동으로 배포됩니다.
+- 배포한 뒤 Google 리디렉션 URI에 배포 주소를 추가하고, `agent/.env`의 `DASHBOARD_URL`을 배포 주소로 바꿉니다. 휴대폰에서 열어 ‘홈 화면에 추가’를 하면 앱처럼 쓸 수 있습니다.
+- 비용: Vercel Hobby와 Upstash 무료 요금제(월 50만 명령, 256MB) 안에서 돌아가도록 만들었습니다. 이 대시보드는 하루 2천 명령 안팎을 씁니다.
 
 ## 금액 계산
 
