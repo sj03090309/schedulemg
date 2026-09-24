@@ -237,7 +237,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
               <Code>npm run agent</Code> 로 한 번 보내 보세요. 이 화면을 새로고침하면 위 목록에 맥이 나타나요.
             </li>
             <li>
-              <Code>bash agent/install-launchd.sh</Code> 를 실행하면 로그인할 때마다 켜지고 2분마다 자동으로 보내요. 끄려면{" "}
+              <Code>bash agent/install-launchd.sh</Code> 를 실행하면 로그인할 때마다 켜지고 2분마다 자동으로 보내요. 맥 캘린더·메모·알림은 바뀌면 몇 초 안에 바로 보내요. 끄려면{" "}
               <Code>bash agent/uninstall-launchd.sh</Code>.
             </li>
           </ol>

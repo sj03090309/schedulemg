@@ -65,7 +65,7 @@ export async function NotesSection({ demo }: { demo: boolean }) {
           ))}
         </ul>
       )}
-      <p className="mt-2 px-1 text-[12px] text-ink-3">체크는 맥 메모 앱에서 하면 몇 분 안에 여기에도 반영돼요.</p>
+      <p className="mt-2 px-1 text-[12px] text-ink-3">맥 메모 앱에서 고치거나 체크하면 몇 초 안에 여기에도 반영돼요.</p>
     </Section>
   );
 }
