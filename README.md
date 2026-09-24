@@ -79,10 +79,11 @@ cp agent/.env.example agent/.env   # DASHBOARD_URL, INGEST_TOKEN 입력
 npm run agent:dry                  # 보내지 않고 무엇이 수집되는지 보기
 npm run agent                      # 한 번 보내기
 npm run agent -- --check           # 대시보드 주소·토큰·저장소(Redis인지) 확인
-bash agent/install-launchd.sh      # 로그인할 때 켜지고 2분마다 실행
+bash agent/install-launchd.sh      # 로그인할 때 켜지고 2분마다 실행 + 파일 변경 감시
 bash agent/uninstall-launchd.sh    # 자동 실행 끄기
 ```
 
+- **실시간 반영**: 설치 스크립트는 감시 작업(`com.schedulemg.agent.watch`, `index.mjs --watch-mac`)도 함께 등록합니다. 계속 켜진 채로 맥 캘린더·메모·알림 데이터베이스 파일의 수정 시각을 2초마다 확인하고, 바뀌면 곧바로(최소 5초 간격) 읽어서 내용이 실제로 달라졌을 때만 보냅니다. 앱들이 데이터베이스를 열어 둔 채로 쓰기 때문에 launchd `WatchPaths`(FSEvents)로는 변경을 알 수 없어서 이렇게 합니다. 열려 있는 대시보드는 15초마다 `/api/live`로 새 데이터가 있는지만 확인하고, 있으면 화면을 새로 그립니다. 그래서 맥에서 일정이나 메모를 고치면 보통 20초 안에 보입니다. Google 캘린더·Gmail은 화면을 다시 볼 때와 5분마다 새로 불러옵니다.
 - 기록은 `~/.schedulemg/agent.log`에, 파일별 집계 캐시는 `~/.schedulemg/`에 남습니다. 처음 한 번은 전체 기록을 읽고, 그 뒤로는 바뀐 파일만 읽습니다.
 - **Claude 한도**: 데스크톱 앱만 쓰면 CLI 로그인 토큰이 갱신되지 않아서, 토큰이 만료되면 에이전트가 `claude`를 없는 모델 이름으로 한 번 실행합니다. CLI가 스스로 토큰을 갱신하고 모델 호출은 바로 실패하므로 사용량은 들지 않습니다(30분에 한 번까지, `AGENT_REFRESH_CLAUDE_LOGIN=0`으로 끔). 에이전트가 토큰을 직접 고치지는 않습니다.
 - **맥 알림**: 백그라운드(launchd)에서 알림 데이터베이스를 읽으려면 node에 전체 디스크 접근 권한이 필요합니다. 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한 → `+` → `Cmd+Shift+G`로 `/opt/homebrew/bin/node` 입력 → 열기 → 켜기. 권한이 없으면 대시보드의 ‘기억할 알림’ 칸에 이유가 표시됩니다. Homebrew로 node를 업그레이드하면 다시 켜야 할 수 있습니다.

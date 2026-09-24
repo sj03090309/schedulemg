@@ -21,6 +21,12 @@ function findDatabase() {
   return candidates.find((p) => existsSync(p)) ?? null;
 }
 
+/** 새 알림이 오면 바뀌는 파일 */
+export function macNotificationFiles() {
+  const db = process.platform === "darwin" ? findDatabase() : null;
+  return db ? [db, `${db}-wal`] : [];
+}
+
 export async function collectMacNotifications(config, now = Date.now()) {
   if (process.platform !== "darwin") return none(null);
   const dbPath = findDatabase();

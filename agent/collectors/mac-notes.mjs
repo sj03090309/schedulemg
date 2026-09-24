@@ -7,6 +7,8 @@ import { gunzipSync } from "node:zlib";
 // 고정한 메모, 체크리스트가 남은 메모, 최근 7일 안에 고친 메모. 잠긴 메모와 삭제한 메모는 제외한다.
 const MAC_EPOCH = 978307200;
 const DB = path.join(homedir(), "Library/Group Containers/group.com.apple.notes/NoteStore.sqlite");
+/** 바뀌었는지 지켜볼 파일 (새 내용은 먼저 -wal 파일에 쓰인다) */
+export const MAC_NOTES_FILES = [DB, `${DB}-wal`];
 const MAX_NOTES = 12;
 const CHECKBOX = 103; // 메모 앱 문단 스타일: 체크리스트
 

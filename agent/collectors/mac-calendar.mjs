@@ -7,6 +7,8 @@ import { kstDayStart } from "../lib/time.mjs";
 // 반복 일정은 캘린더 앱이 날짜별로 펼쳐 둔 OccurrenceCache를 쓴다. 전체 디스크 접근 권한이 필요하다.
 const MAC_EPOCH = 978307200; // 2001-01-01T00:00:00Z (초)
 const DB = path.join(homedir(), "Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb");
+/** 바뀌었는지 지켜볼 파일 (새 내용은 먼저 -wal 파일에 쓰인다) */
+export const MAC_CALENDAR_FILES = [DB, `${DB}-wal`];
 // Siri 제안으로 만들어진 캘린더와 미리 알림은 일정이 아니다.
 const SKIP = /^(Default|Found in Mail|Found in Natural Language|Scheduled Reminders|메일에서 찾음|자연어에서 찾음)$/i;
 const HOLIDAY = /공휴일|휴일|holiday/i;

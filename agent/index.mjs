@@ -4,15 +4,16 @@
 //   node agent/index.mjs --dry-run  보내지 않고 무엇이 수집되는지만 보기
 //   node agent/index.mjs --watch    AGENT_INTERVAL(기본 120초)마다 계속 실행
 //   node agent/index.mjs --check    대시보드 연결과 저장소 확인
-//   node agent/index.mjs --mac-only 맥 캘린더·메모·알림만 바로 보내기 (파일 변경 감시용)
+//   node agent/index.mjs --mac-only 맥 캘린더·메모·알림만 한 번 바로 보내기
+//   node agent/index.mjs --watch-mac 맥 캘린더·메모·알림이 바뀔 때마다 바로 보내기 (계속 실행)
 import { createHash } from "node:crypto";
-import { statSync, readFileSync, writeFileSync } from "node:fs";
+import { statSync, readFileSync, watchFile, writeFileSync } from "node:fs";
 import path from "node:path";
 import { collectClaude } from "./collectors/claude.mjs";
 import { collectCodex } from "./collectors/codex.mjs";
-import { collectMacCalendar } from "./collectors/mac-calendar.mjs";
-import { collectMacNotes } from "./collectors/mac-notes.mjs";
-import { collectMacNotifications } from "./collectors/mac-notifications.mjs";
+import { MAC_CALENDAR_FILES, collectMacCalendar } from "./collectors/mac-calendar.mjs";
+import { MAC_NOTES_FILES, collectMacNotes } from "./collectors/mac-notes.mjs";
+import { collectMacNotifications, macNotificationFiles } from "./collectors/mac-notifications.mjs";
 import { summarizeMail } from "./collectors/mail-insights.mjs";
 import { loadConfig } from "./lib/config.mjs";
 import { readJSON, writeJSON } from "./lib/files.mjs";
@@ -24,6 +25,7 @@ const DRY_RUN = args.has("--dry-run");
 const WATCH = args.has("--watch");
 const CHECK = args.has("--check");
 const MAC_ONLY = args.has("--mac-only");
+const WATCH_MAC = args.has("--watch-mac");
 
 const log = (msg) => console.log(`[${kstStamp()}] ${msg}`);
 
@@ -181,7 +183,7 @@ async function sendMacData(config, macCal, macNotes, { heartbeat = true } = {}) 
   }
 }
 
-/** 캘린더·메모·알림 DB가 바뀌면 launchd가 바로 실행한다: 맥 데이터와 새 알림만 빠르게 보낸다. */
+/** 맥 데이터와 새 알림만 빠르게 보낸다. 캘린더·메모·알림 DB가 바뀌면 watchMac이 부른다. */
 async function runMacOnly(config) {
   const started = Date.now();
   const [macCal, macNotes, notes] = await Promise.all([
@@ -202,6 +204,52 @@ async function runMacOnly(config) {
   }
   // 파일은 자주 바뀌므로 실제로 보낸 것이 있을 때만 기록한다.
   if (mac.sent || noteText) log(`즉시 반영${mac.text}${noteText} (${Date.now() - started}ms)`);
+}
+
+/**
+ * 캘린더·메모·알림 DB 파일을 2초마다 확인하다가 바뀌면 곧바로 보낸다 (launchd가 계속 켜 둔다).
+ * 앱들이 DB를 열어 둔 채로 쓰기 때문에 파일 변경 알림(FSEvents)은 오지 않을 때가 많아서 수정 시각을 직접 본다.
+ */
+function watchMac(config) {
+  const files = [
+    ...(config.macCalendar ? MAC_CALENDAR_FILES : []),
+    ...(config.macNotes ? MAC_NOTES_FILES : []),
+    ...(config.macNotifications ? macNotificationFiles() : []),
+  ];
+  if (process.platform !== "darwin" || !files.length) {
+    log("지켜볼 맥 캘린더·메모·알림이 없어서 감시를 끝내요.");
+    return;
+  }
+
+  let timer = null;
+  let running = false;
+  let lastRun = 0;
+  const schedule = () => {
+    if (timer) return;
+    // 바뀐 직후 잠깐 모았다가 보내고, 메모를 입력하는 동안처럼 계속 바뀌어도 5초에 한 번까지만 보낸다.
+    const wait = Math.max(1500, lastRun + 5000 - Date.now());
+    timer = setTimeout(async () => {
+      timer = null;
+      if (running) return schedule();
+      running = true;
+      lastRun = Date.now();
+      try {
+        await runMacOnly(config);
+      } catch (e) {
+        log(`즉시 반영 실패: ${e?.message ?? e}`);
+      } finally {
+        running = false;
+      }
+    }, wait);
+  };
+
+  for (const file of files) {
+    watchFile(file, { interval: 2000 }, (cur, prev) => {
+      if (cur.mtimeMs !== prev.mtimeMs || cur.size !== prev.size || cur.ino !== prev.ino) schedule();
+    });
+  }
+  log(`맥 캘린더·메모·알림 변경 감시 시작 (파일 ${files.length}개)`);
+  schedule(); // 꺼져 있던 사이에 바뀐 것부터 보낸다.
 }
 
 // launchd 로그가 끝없이 커지지 않게 2MB를 넘으면 뒷부분만 남긴다.
@@ -245,6 +293,10 @@ async function main() {
   }
   if (MAC_ONLY) {
     await runMacOnly(config);
+    return;
+  }
+  if (WATCH_MAC) {
+    watchMac(config);
     return;
   }
   trimLog(config);
