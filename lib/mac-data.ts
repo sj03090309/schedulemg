@@ -108,6 +108,6 @@ export async function saveMacData(data: Omit<MacData, "receivedAt">): Promise<vo
 
 /** 가장 최근에 보고한 맥의 데이터 */
 export async function loadMacData(): Promise<MacData | null> {
-  const all = Object.values(await hgetallJSON<MacData>(KEY));
+  const all = Object.values(await hgetallJSON<MacData>(KEY)).filter((d) => d.calendar || d.notes);
   return all.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0] ?? null;
 }

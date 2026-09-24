@@ -14,6 +14,9 @@ export async function POST(request: Request) {
   }
   const data = sanitizeMacData(body);
   if (!data) return Response.json({ ok: false, error: "형식이 올바르지 않아요." }, { status: 400 });
+  if (!data.calendar && !data.notes) {
+    return Response.json({ ok: false, error: "calendar나 notes 중 하나는 있어야 해요." }, { status: 400 });
+  }
 
   await saveMacData(data);
   return Response.json({
