@@ -90,7 +90,15 @@ export function buildBriefing(input: BriefingInput): Briefing {
   const todayEvents = eventsOnDay(input.events ?? [], today);
   // 공휴일은 '일정'으로 세지 않고 따로 알려 준다.
   const holidayNames = [...new Set(todayEvents.filter((e) => e.holiday).map((e) => e.title))];
-  const regularEvents = todayEvents.filter((e) => !e.holiday);
+  // 클래스룸 수업 캘린더의 일정은 '과제 마감'으로 센다. 클래스룸 권한으로 과제를 직접 읽을 수 있으면 그쪽을 쓴다.
+  const useCalendarDue = !(input.assignments && input.assignments.length);
+  const calendarDue = (key: string) =>
+    useCalendarDue
+      ? eventsOnDay(input.events ?? [], key).filter((e) => e.classroom && !e.holiday && !isChecked(`cal:${e.id}`))
+      : [];
+  const calendarDueToday = calendarDue(today).filter((e) => e.allDay || Date.parse(e.end) > nowMs);
+  const calendarDueTomorrow = calendarDue(tomorrow);
+  const regularEvents = todayEvents.filter((e) => !e.holiday && !e.classroom);
   const timed = regularEvents.filter((e) => !e.allDay);
   const current = timed.find((e) => Date.parse(e.start) <= nowMs && Date.parse(e.end) > nowMs);
   const next = timed.find((e) => Date.parse(e.start) > nowMs);
@@ -129,7 +137,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
   // 한 문장 요약
   const eventsKnown = input.events !== null;
   const nE = regularEvents.length;
-  const nD = dueToday.length;
+  const nD = dueToday.length + calendarDueToday.length;
   const holidayText = holidayNames.join(", ");
   let headline: string;
   let holidayInHeadline = false;
@@ -164,8 +172,11 @@ export function buildBriefing(input: BriefingInput): Briefing {
   if (dueToday.length) {
     const a = dueToday[0];
     lines.push(`가장 급한 과제는 ${formatTime(new Date(a.due!))} 마감인 ‘${a.title}’${josa.ieyo(a.title)}.`);
-  } else if (dueTomorrow.length) {
-    lines.push(`내일 마감인 과제가 ${dueTomorrow.length}개 있어요.`);
+  } else if (calendarDueToday.length) {
+    const names = calendarDueToday.slice(0, 2).map((e) => `‘${e.title}’`).join(", ");
+    lines.push(`오늘 마감인 과제: ${names}${calendarDueToday.length > 2 ? ` 외 ${calendarDueToday.length - 2}개` : ""}.`);
+  } else if (dueTomorrow.length + calendarDueTomorrow.length) {
+    lines.push(`내일 마감인 과제가 ${dueTomorrow.length + calendarDueTomorrow.length}개 있어요.`);
   }
   if (importantMail.length) {
     const top = importantMail[0];
@@ -208,6 +219,20 @@ export function buildBriefing(input: BriefingInput): Briefing {
   });
   for (const a of overdue) items.push(assignmentItem(a, "urgent", `${formatWhen(new Date(a.due!), now)} 마감 지남`));
   for (const a of dueToday) items.push(assignmentItem(a, "urgent", `오늘 ${formatTime(new Date(a.due!))} 마감`));
+  const calendarItem = (e: CalEvent, tone: RememberItem["tone"], dayWord: string): RememberItem => ({
+    key: `cal:${e.id}`,
+    kind: "assignment",
+    tone,
+    title: e.title,
+    context: e.calendar,
+    when: e.allDay ? `${dayWord} 마감` : `${dayWord} ${formatTime(new Date(e.start))} 마감`,
+    href: e.link,
+    account: e.account,
+    done: false,
+    toggle: { type: "check", key: `cal:${e.id}` },
+  });
+  for (const e of calendarDueToday) items.push(calendarItem(e, "urgent", "오늘"));
+  for (const e of calendarDueTomorrow) items.push(calendarItem(e, "normal", "내일"));
   for (const m of memos) {
     const late = Boolean(m.date && m.date < today);
     items.push({
@@ -270,6 +295,9 @@ export function buildBriefing(input: BriefingInput): Briefing {
   for (const a of input.assignments ?? []) {
     if (checkedToday(`cw:${a.id}`)) items.push({ ...assignmentItem(a, "normal", "확인함"), done: true });
   }
+  for (const e of input.events ?? []) {
+    if (e.classroom && checkedToday(`cal:${e.id}`)) items.push({ ...calendarItem(e, "normal", "오늘"), done: true, when: undefined });
+  }
   for (const m of input.mail ?? []) {
     if (checkedToday(`mail:${m.id}`)) {
       items.push({
@@ -324,7 +352,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
     upcomingMemos,
     todayEvents,
     dueToday,
-    counts: {
+      counts: {
       events: nE,
       dueToday: nD,
       overdue: overdue.length,

@@ -94,6 +94,8 @@ function EventRow({ event: e, now, tag, compact }: { event: CalEvent; now: Date;
               진행 중
             </span>
           )}
+          {e.classroom && <span className="font-semibold text-critical">과제 마감</span>}
+          {e.holiday && <span className="font-medium text-ink-2">공휴일</span>}
           {e.location && (
             <span className="inline-flex items-center gap-1">
               <MapPin className="size-3.5" aria-hidden />

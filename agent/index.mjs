@@ -198,7 +198,8 @@ async function check(config) {
   console.log(`저장소: ${storage}`);
   for (const h of body.hosts ?? []) console.log(`마지막 보고: ${h.host} (${kstStamp(Date.parse(h.collectedAt))})`);
   for (const g of body.google ?? []) {
-    console.log(`Google 계정 ${g.account}: ${g.services.length ? g.services.join(", ") : "권한 없음"}${g.needsReauth ? " (다시 연결 필요)" : ""}`);
+    const classes = typeof g.classroomCalendars === "number" ? `, 수업 캘린더 ${g.classroomCalendars}개` : "";
+    console.log(`Google 계정 ${g.account}: ${g.services.length ? g.services.join(", ") : "권한 없음"}${classes}${g.needsReauth ? " (다시 연결 필요)" : ""}`);
   }
   if (!body.hosts?.length) console.log("아직 받은 보고가 없어요. npm run agent 로 한 번 보내 보세요.");
 }

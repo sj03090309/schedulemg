@@ -1,4 +1,5 @@
 import { listAccounts } from "@/lib/google/accounts";
+import { countClassroomCalendars } from "@/lib/google/calendar";
 import { grantedServices } from "@/lib/google/oauth";
 import { checkIngestAuth, readJsonBody } from "@/lib/ingest-auth";
 import { getKV } from "@/lib/store/kv";
@@ -11,16 +12,25 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const kv = getKV();
   const [reports, accounts] = await Promise.all([loadUsageReports(), listAccounts().catch(() => [])]);
+  // 캘린더 권한이 있는 계정은 클래스룸 수업 캘린더가 몇 개 보이는지도 알려 준다.
+  const classroomCalendars = await Promise.all(
+    accounts.map((a) =>
+      grantedServices(a.scope).includes("calendar") && !a.needsReauth
+        ? countClassroomCalendars(a).catch(() => null)
+        : Promise.resolve(null),
+    ),
+  );
   return Response.json({
     ok: true,
     storage: kv.kind,
     persistent: kv.persistent,
     hosts: reports.map((r) => ({ host: r.host, collectedAt: r.collectedAt, receivedAt: r.receivedAt })),
     // 이메일은 앞 세 글자만 보여 준다.
-    google: accounts.map((a) => ({
+    google: accounts.map((a, i) => ({
       account: a.email.replace(/^(.{3})[^@]*/, "$1…"),
       services: grantedServices(a.scope),
       needsReauth: Boolean(a.needsReauth),
+      classroomCalendars: classroomCalendars[i],
     })),
   });
 }

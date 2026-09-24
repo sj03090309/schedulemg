@@ -1,10 +1,21 @@
-import { ChevronDown, Mail, Megaphone, TriangleAlert } from "lucide-react";
-import { getAccountTags, loadClassroom, loadMail } from "@/lib/dashboard-data";
+import { CalendarDays, ChevronDown, Mail, Megaphone, TriangleAlert } from "lucide-react";
+import { getAccountTags, loadCalendar, loadClassroom, loadMail } from "@/lib/dashboard-data";
 import { isGoogleConfigured } from "@/lib/env";
 import type { AccountTag } from "@/lib/google/accounts";
+import type { CalEvent } from "@/lib/google/calendar";
 import type { Assignment } from "@/lib/google/classroom";
 import type { MailItem } from "@/lib/google/gmail";
-import { DAY, dateKey, formatRelative, formatTime, formatWhen, shiftDateKey } from "@/lib/time";
+import {
+  DAY,
+  dateKey,
+  dayDiff,
+  dayLabel,
+  formatRelative,
+  formatTime,
+  formatWhen,
+  shiftDateKey,
+  startOfDay,
+} from "@/lib/time";
 import { AccountBadge, Empty, Notice, Section, Warnings } from "./ui";
 
 interface Group {
@@ -19,11 +30,19 @@ interface Group {
  * 클래스룸 권한이 없어도 메일에서 찾은 마감으로 채운다.
  */
 export async function AssignmentsSection({ demo }: { demo: boolean }) {
-  const [classroom, tags, mail] = await Promise.all([loadClassroom(demo), getAccountTags(demo), loadMail(demo)]);
+  const [classroom, tags, mail, calendar] = await Promise.all([
+    loadClassroom(demo),
+    getAccountTags(demo),
+    loadMail(demo),
+    loadCalendar(demo),
+  ]);
   const now = new Date();
   const fromMail = mail.status === "ok" ? mailDeadlines(mail.data.items, now) : [];
 
   if (classroom.status !== "ok") {
+    // 클래스룸 권한이 없으면 학교 캘린더의 수업 캘린더(과제 마감)와 메일에서 찾은 마감으로 채운다.
+    const fromCalendar = calendar.status === "ok" ? calendarDeadlines(calendar.data, now) : [];
+    const total = fromCalendar.length + fromMail.length;
     if (!isGoogleConfigured()) {
       return (
         <Section id="assignments" title="과제">
@@ -35,11 +54,19 @@ export async function AssignmentsSection({ demo }: { demo: boolean }) {
       );
     }
     return (
-      <Section id="assignments" title="과제" count={fromMail.length || null}>
+      <Section id="assignments" title="과제" count={total || null}>
         {classroom.status === "error" && <Warnings items={[classroom.message]} />}
-        {fromMail.length > 0 ? <MailDeadlines items={fromMail} /> : <Empty>다가오는 마감이 없어요.</Empty>}
+        {total === 0 && <Empty>다가오는 마감이 없어요.</Empty>}
+        <div className="space-y-5">
+          {fromCalendar.length > 0 && <CalendarDeadlines items={fromCalendar} now={now} tags={Object.keys(tags).length > 1 ? tags : {}} />}
+          {fromMail.length > 0 && (
+            <div>
+              <MailDeadlines items={fromMail} />
+            </div>
+          )}
+        </div>
         <p className="mt-2 px-1 text-[12px] leading-relaxed text-ink-3">
-          메일에서 찾은 과제와 마감을 모아 보여 줘요. 학교 과제 알림을 받는 방법은{" "}
+          수업 캘린더와 메일에서 찾은 과제 마감을 모아 보여 줘요. 학교 과제 알림을 받는 방법은{" "}
           <a href="/settings#classroom-forward" className="font-medium text-sky hover:underline">
             설정
           </a>
@@ -144,6 +171,55 @@ export async function AssignmentsSection({ demo }: { demo: boolean }) {
         </details>
       )}
     </Section>
+  );
+}
+
+/** 클래스룸 수업 캘린더의 앞으로 14일 일정 (= 과제 마감), 가까운 순 */
+function calendarDeadlines(events: CalEvent[], now: Date) {
+  const dayStart = startOfDay(dateKey(now)).getTime();
+  return events
+    .filter((e) => e.classroom && !e.holiday && Date.parse(e.end) > dayStart && Date.parse(e.start) < now.getTime() + 14 * DAY)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .slice(0, 12);
+}
+
+function CalendarDeadlines({ items, now, tags }: { items: CalEvent[]; now: Date; tags: Record<string, AccountTag> }) {
+  return (
+    <div>
+      <h3 className="mb-1 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-ink-2">
+        <CalendarDays className="size-3.5" aria-hidden />
+        수업 캘린더
+        <span className="font-normal text-ink-3 tabular-nums">{items.length}</span>
+      </h3>
+      <ul className="divide-y divide-line">
+        {items.map((e) => {
+          const start = new Date(e.start);
+          const diff = dayDiff(start, now);
+          const urgent = diff <= 0;
+          return (
+            <li key={e.id} className="py-2.5">
+              {e.link ? (
+                <a href={e.link} target="_blank" rel="noreferrer" className="block text-[15px] font-medium leading-snug text-ink hover:underline">
+                  {e.title}
+                </a>
+              ) : (
+                <p className="text-[15px] font-medium leading-snug text-ink">{e.title}</p>
+              )}
+              <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-3">
+                <span className={urgent ? "font-semibold text-critical" : "font-medium text-ink-2"}>
+                  {e.allDay ? `${dayLabel(start, now)} 마감` : `${formatWhen(start, now)} 마감`}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden className="size-2 rounded-full" style={{ background: e.color }} />
+                  {e.calendar}
+                </span>
+                <AccountBadge tag={tags[e.account]} />
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

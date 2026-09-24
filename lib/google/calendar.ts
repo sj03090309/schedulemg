@@ -18,8 +18,15 @@ export interface CalEvent {
   meetLink?: string;
   /** 공휴일 캘린더의 일정 (브리핑에서 따로 알려 주고 일정 개수에서는 뺀다) */
   holiday?: boolean;
+  /** 클래스룸이 수업마다 만든 캘린더의 일정 = 과제 마감 */
+  classroom?: boolean;
   source?: "google" | "mac";
 }
+
+// 클래스룸 수업 캘린더 ID는 "classroom…@group.calendar.google.com" 꼴이다.
+const CLASSROOM_CALENDAR = /classroom/i;
+/** 수업 캘린더는 과제 마감을 미리 보도록 더 길게 읽는다 */
+const CLASSROOM_DAYS = 14;
 
 const HOLIDAY_CALENDAR = /공휴일|휴일|holiday/i;
 
@@ -58,9 +65,10 @@ export async function fetchEvents(account: GoogleAccount, fromKey: string, days:
   );
   const calendars = (list.items ?? []).filter((c) => c.selected !== false && !c.hidden);
   const timeMin = startOfDay(fromKey).toISOString();
-  const timeMax = startOfDay(shiftDateKey(fromKey, days)).toISOString();
 
   const perCalendar = await mapLimit(calendars, 6, async (cal) => {
+    const isClassroom = CLASSROOM_CALENDAR.test(cal.id);
+    const timeMax = startOfDay(shiftDateKey(fromKey, isClassroom ? Math.max(days, CLASSROOM_DAYS) : days)).toISOString();
     const params = new URLSearchParams({
       timeMin,
       timeMax,
@@ -77,9 +85,18 @@ export async function fetchEvents(account: GoogleAccount, fromKey: string, days:
       .filter((e) => e.status !== "cancelled" && e.start && (e.start.date || e.start.dateTime))
       .filter((e) => !e.attendees?.some((a) => a.self && a.responseStatus === "declined"))
       .filter((e) => e.eventType !== "workingLocation")
-      .map((e) => toEvent(account.email, cal.summaryOverride ?? cal.summary ?? "캘린더", cal.backgroundColor, e));
+      .map((e) => ({
+        ...toEvent(account.email, cal.summaryOverride ?? cal.summary ?? "캘린더", cal.backgroundColor, e),
+        classroom: isClassroom,
+      }));
   });
   return perCalendar.flat();
+}
+
+/** 계정의 캘린더 목록에서 클래스룸 수업 캘린더 개수 (연결 점검용) */
+export async function countClassroomCalendars(account: GoogleAccount): Promise<number> {
+  const list = await gget<CalendarListResponse>(account, `${BASE}/users/me/calendarList?minAccessRole=reader&maxResults=250`);
+  return (list.items ?? []).filter((c) => CLASSROOM_CALENDAR.test(c.id)).length;
 }
 
 function toEvent(account: string, calendar: string, color: string | undefined, e: GEvent): CalEvent {
