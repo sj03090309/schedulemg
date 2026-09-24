@@ -1,6 +1,7 @@
 import type { CalEvent } from "./google/calendar";
 import type { Assignment } from "./google/classroom";
 import type { MailItem } from "./google/gmail";
+import type { MacNote } from "./mac-data";
 import type { Memo } from "./memos";
 import type { NotificationItem } from "./notifications";
 import { clampText, josa } from "./text";
@@ -49,6 +50,8 @@ export interface BriefingInput {
   memos: Memo[] | null;
   usage: UsageView | null;
   checks: Record<string, string>;
+  /** 맥 메모 앱 메모 (체크하지 않은 체크리스트 항목을 세는 데 쓴다) */
+  macNotes?: MacNote[] | null;
 }
 
 export interface Briefing {
@@ -85,7 +88,10 @@ export function buildBriefing(input: BriefingInput): Briefing {
   const checkedToday = (key: string) => Boolean(checks[key]) && dateKey(new Date(checks[key])) === today;
 
   const todayEvents = eventsOnDay(input.events ?? [], today);
-  const timed = todayEvents.filter((e) => !e.allDay);
+  // 공휴일은 '일정'으로 세지 않고 따로 알려 준다.
+  const holidayNames = [...new Set(todayEvents.filter((e) => e.holiday).map((e) => e.title))];
+  const regularEvents = todayEvents.filter((e) => !e.holiday);
+  const timed = regularEvents.filter((e) => !e.allDay);
   const current = timed.find((e) => Date.parse(e.start) <= nowMs && Date.parse(e.end) > nowMs);
   const next = timed.find((e) => Date.parse(e.start) > nowMs);
   const anyStarted = timed.some((e) => Date.parse(e.start) <= nowMs);
@@ -122,11 +128,16 @@ export function buildBriefing(input: BriefingInput): Briefing {
 
   // 한 문장 요약
   const eventsKnown = input.events !== null;
-  const nE = todayEvents.length;
+  const nE = regularEvents.length;
   const nD = dueToday.length;
+  const holidayText = holidayNames.join(", ");
   let headline: string;
+  let holidayInHeadline = false;
   if (!eventsKnown && input.assignments === null) {
     headline = "Google 계정을 연결하면 오늘 일정과 과제를 정리해 드릴게요.";
+  } else if (!nE && !nD && holidayText) {
+    headline = `오늘은 ${holidayText}${josa.ieyo(holidayText)}. 정해진 일정은 없어요.`;
+    holidayInHeadline = true;
   } else if (nE && nD) {
     headline = `오늘은 일정 ${nE}개가 있고, 과제 ${nD}개가 오늘 마감이에요.`;
   } else if (nE) {
@@ -139,6 +150,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
 
   // 이어지는 설명 문장
   const lines: string[] = [];
+  if (holidayText && !holidayInHeadline) lines.push(`오늘은 ${holidayText}${josa.ieyo(holidayText)}.`);
   if (overdue.length) lines.push(`기한이 지난 과제 ${overdue.length}개를 먼저 확인하세요.`);
   if (current) {
     lines.push(`지금은 ‘${current.title}’ 시간이에요. ${formatTime(new Date(current.end))}에 끝나요.`);
@@ -164,6 +176,8 @@ export function buildBriefing(input: BriefingInput): Briefing {
   if (notes.length && memos.length) lines.push(`기억할 알림 ${notes.length}개와 메모 ${memos.length}개가 있어요.`);
   else if (notes.length) lines.push(`기억할 알림이 ${notes.length}개 있어요.`);
   else if (memos.length) lines.push(`오늘 챙길 메모가 ${memos.length}개 있어요.`);
+  const openChecklist = (input.macNotes ?? []).reduce((s, n) => s + n.openItems.length, 0);
+  if (openChecklist) lines.push(`맥 메모에 아직 체크하지 않은 항목이 ${openChecklist}개 있어요.`);
 
   const hotWindows = [input.usage?.claude, input.usage?.codex].flatMap((p) =>
     p?.limits

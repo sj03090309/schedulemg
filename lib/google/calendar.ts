@@ -16,7 +16,12 @@ export interface CalEvent {
   location?: string;
   link?: string;
   meetLink?: string;
+  /** 공휴일 캘린더의 일정 (브리핑에서 따로 알려 주고 일정 개수에서는 뺀다) */
+  holiday?: boolean;
+  source?: "google" | "mac";
 }
+
+const HOLIDAY_CALENDAR = /공휴일|휴일|holiday/i;
 
 interface CalendarListResponse {
   items?: {
@@ -98,18 +103,23 @@ function toEvent(account: string, calendar: string, color: string | undefined, e
     location: e.location,
     link: e.htmlLink,
     meetLink: e.hangoutLink,
+    holiday: HOLIDAY_CALENDAR.test(calendar),
+    source: "google",
   };
 }
 
-/** 여러 계정에 같은 일정이 있으면 하나만 남긴다. */
+/**
+ * 여러 계정·맥 캘린더에 같은 일정이 있으면 하나만 남긴다.
+ * 같은 ID이거나, 제목과 시작 시각이 같으면 같은 일정으로 본다 (예: Google과 맥 양쪽의 공휴일).
+ */
 export function dedupeEvents(events: CalEvent[]): CalEvent[] {
   const seen = new Set<string>();
   return events
     .sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title))
     .filter((e) => {
-      const key = `${e.uid}|${e.start}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
+      const keys = [`id|${e.uid}|${e.start}`, `title|${e.title.replace(/\s+/g, "")}|${e.start}|${e.allDay}`];
+      if (keys.some((k) => seen.has(k))) return false;
+      for (const k of keys) seen.add(k);
       return true;
     });
 }

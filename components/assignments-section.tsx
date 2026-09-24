@@ -14,61 +14,46 @@ interface Group {
   items: Assignment[];
 }
 
-export async function ClassroomSection({ demo }: { demo: boolean }) {
+/**
+ * 과제 칸: 클래스룸 과제(연결된 경우)와, Claude가 메일(학교 메일 전달 포함)에서 찾은 마감을 모은다.
+ * 클래스룸 권한이 없어도 메일에서 찾은 마감으로 채운다.
+ */
+export async function AssignmentsSection({ demo }: { demo: boolean }) {
   const [classroom, tags, mail] = await Promise.all([loadClassroom(demo), getAccountTags(demo), loadMail(demo)]);
-  const aside = (
-    <a href="https://classroom.google.com/a/not-turned-in/all" target="_blank" rel="noreferrer" className="text-[13px] font-medium text-sky hover:underline">
-      클래스룸 열기
-    </a>
-  );
+  const now = new Date();
+  const fromMail = mail.status === "ok" ? mailDeadlines(mail.data.items, now) : [];
 
-  if (classroom.status === "setup" && isGoogleConfigured()) {
-    // 학교 계정처럼 클래스룸 권한을 줄 수 없는 경우: 메일에서 Claude가 찾은 마감을 대신 보여 준다.
-    const now = new Date();
-    const fromMail = mail.status === "ok" ? mailDeadlines(mail.data.items, now) : [];
+  if (classroom.status !== "ok") {
+    if (!isGoogleConfigured()) {
+      return (
+        <Section id="assignments" title="과제">
+          <Notice
+            message={classroom.status === "setup" ? classroom.message : "과제를 불러오지 못했어요."}
+            action={classroom.status === "setup" ? classroom.action : undefined}
+          />
+        </Section>
+      );
+    }
     return (
-      <Section id="classroom" title="과제" count={fromMail.length || null} aside={aside}>
-        {fromMail.length > 0 && (
-          <>
-            <h3 className="mb-1 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-ink-2">
-              <Mail className="size-3.5" aria-hidden />
-              메일에서 찾은 마감
-            </h3>
-            <ul className="mb-4 divide-y divide-line">
-              {fromMail.map((m) => (
-                <li key={`${m.account}:${m.id}`} className="py-2.5">
-                  <a href={m.link} target="_blank" rel="noreferrer" className="block text-[15px] font-medium leading-snug text-ink hover:underline">
-                    {m.insight?.action ?? m.subject}
-                  </a>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-3">
-                    <span className={m.urgent ? "font-semibold text-critical" : "font-medium text-ink-2"}>{m.dueLabel}</span>
-                    <span className="min-w-0 break-words">{m.insight?.summary}</span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <p className="px-1 text-[13px] leading-relaxed text-ink-3">
-          클래스룸 권한이 있는 계정이 없어요. 학교 계정은 학교에서 외부 앱을 막아 둔 경우가 많아요. 학교 Gmail의 클래스룸 알림 메일을 개인
-          Gmail로 자동 전달하면, 메일에서 과제와 마감을 찾아 여기와 ‘잊지 말 것’에 보여 드려요.{" "}
+      <Section id="assignments" title="과제" count={fromMail.length || null}>
+        {classroom.status === "error" && <Warnings items={[classroom.message]} />}
+        {fromMail.length > 0 ? <MailDeadlines items={fromMail} /> : <Empty>다가오는 마감이 없어요.</Empty>}
+        <p className="mt-2 px-1 text-[12px] leading-relaxed text-ink-3">
+          메일에서 찾은 과제와 마감을 모아 보여 줘요. 학교 과제 알림을 받는 방법은{" "}
           <a href="/settings#classroom-forward" className="font-medium text-sky hover:underline">
-            전달 설정 방법
+            설정
           </a>
+          에 있어요.
         </p>
       </Section>
     );
   }
 
-  if (classroom.status !== "ok") {
-    return (
-      <Section id="classroom" title="과제" aside={aside}>
-        <Notice tone={classroom.status === "error" ? "error" : "setup"} message={classroom.message} action={classroom.status === "setup" ? classroom.action : undefined} />
-      </Section>
-    );
-  }
-
-  const now = new Date();
+  const aside = (
+    <a href="https://classroom.google.com/a/not-turned-in/all" target="_blank" rel="noreferrer" className="text-[13px] font-medium text-sky hover:underline">
+      클래스룸 열기
+    </a>
+  );
   const nowMs = now.getTime();
   const today = dateKey(now);
   const tomorrow = shiftDateKey(today, 1);
@@ -99,9 +84,9 @@ export async function ClassroomSection({ demo }: { demo: boolean }) {
   const announcements = classroom.data.announcements.slice(0, 3);
 
   return (
-    <Section id="classroom" title="과제" count={pending.length} aside={aside}>
+    <Section id="assignments" title="과제" count={pending.length + fromMail.length} aside={aside}>
       <Warnings items={classroom.warnings} />
-      {groups.length === 0 ? (
+      {groups.length === 0 && fromMail.length === 0 ? (
         <Empty>
           제출할 과제가 없어요. 수업 {classroom.data.courseCount}개를 확인했어요.
         </Empty>
@@ -123,6 +108,11 @@ export async function ClassroomSection({ demo }: { demo: boolean }) {
               </ul>
             </div>
           ))}
+          {fromMail.length > 0 && (
+            <div>
+              <MailDeadlines items={fromMail} />
+            </div>
+          )}
         </div>
       )}
       {recentlySubmitted > 0 && (
@@ -154,6 +144,31 @@ export async function ClassroomSection({ demo }: { demo: boolean }) {
         </details>
       )}
     </Section>
+  );
+}
+
+function MailDeadlines({ items }: { items: ReturnType<typeof mailDeadlines> }) {
+  return (
+    <>
+      <h3 className="mb-1 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-ink-2">
+        <Mail className="size-3.5" aria-hidden />
+        메일에서 찾은 마감
+        <span className="font-normal text-ink-3 tabular-nums">{items.length}</span>
+      </h3>
+      <ul className="divide-y divide-line">
+        {items.map((m) => (
+          <li key={`${m.account}:${m.id}`} className="py-2.5">
+            <a href={m.link} target="_blank" rel="noreferrer" className="block text-[15px] font-medium leading-snug text-ink hover:underline">
+              {m.insight?.action ?? m.subject}
+            </a>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-3">
+              <span className={m.urgent ? "font-semibold text-critical" : "font-medium text-ink-2"}>{m.dueLabel}</span>
+              <span className="min-w-0 break-words">{m.insight?.summary}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

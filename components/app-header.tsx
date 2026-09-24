@@ -36,9 +36,10 @@ export function AppHeader({ now, demo, devMode }: { now: Date; demo: boolean; de
 const LINKS: [string, string][] = [
   ["remember", "잊지 말 것"],
   ["calendar", "일정"],
-  ["classroom", "과제"],
+  ["assignments", "과제"],
   ["mail", "메일"],
   ["notifications", "알림"],
+  ["notes", "메모"],
   ["ai", "AI 사용량"],
 ];
 

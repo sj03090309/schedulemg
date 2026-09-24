@@ -6,6 +6,7 @@ import {
   DEMO_ACCOUNTS,
   demoClassroom,
   demoEvents,
+  demoMacData,
   demoMail,
   demoMemos,
   demoNotifications,
@@ -18,6 +19,7 @@ import { fetchClassroom, type ClassroomData } from "./google/classroom";
 import { describeGoogleError } from "./google/client";
 import { fetchMail, type MailItem } from "./google/gmail";
 import { grantedServices, type GoogleService } from "./google/oauth";
+import { loadMacData, type MacData } from "./mac-data";
 import { insightKey, loadInsights, type MailInsight } from "./mail-insights";
 import { listMemos, type Memo } from "./memos";
 import { listNotifications, type NotificationItem } from "./notifications";
@@ -88,12 +90,46 @@ async function perAccount<T>(
   return ok(data, warnings);
 }
 
+export const loadMac = cache(async (demo: boolean): Promise<MacData | null> => {
+  if (demo) return demoMacData(new Date());
+  try {
+    return await loadMacData();
+  } catch (e) {
+    console.error("[mac]", e);
+    return null;
+  }
+});
+
+function macEvents(mac: MacData | null): CalEvent[] {
+  return (mac?.calendar?.events ?? []).map((e) => ({
+    id: `mac:${e.uid}`,
+    uid: e.uid,
+    account: "mac",
+    calendar: e.calendar,
+    color: e.color,
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    allDay: e.allDay,
+    holiday: e.holiday,
+    source: "mac" as const,
+  }));
+}
+
+/** Google 캘린더(모든 계정)와 맥 캘린더 앱 일정을 합친다. 어느 한쪽만 있어도 보여 준다. */
 export const loadCalendar = cache(async (demo: boolean): Promise<Section<CalEvent[]>> => {
-  if (demo) return ok(demoEvents(new Date()));
+  if (demo) return ok(dedupeEvents([...demoEvents(new Date()), ...macEvents(demoMacData(new Date()))]));
   const today = dateKey();
-  const r = await perAccount("calendar", "캘린더", `cal:${today}`, 90_000, (a) => fetchEvents(a, today, 3));
-  if (r.status !== "ok") return r;
-  return ok(dedupeEvents(r.data.flatMap((d) => d.value)), r.warnings);
+  const [r, mac] = await Promise.all([
+    perAccount("calendar", "캘린더", `cal:${today}`, 90_000, (a) => fetchEvents(a, today, 3)),
+    loadMac(false),
+  ]);
+  const fromMac = macEvents(mac);
+  if (r.status !== "ok") {
+    if (!fromMac.length) return r;
+    return ok(dedupeEvents(fromMac), r.status === "error" ? [r.message] : []);
+  }
+  return ok(dedupeEvents([...r.data.flatMap((d) => d.value), ...fromMac]), r.warnings);
 });
 
 export interface MailData {
@@ -190,7 +226,7 @@ export const loadUsage = cache(async (demo: boolean): Promise<UsageView> => {
 });
 
 export const loadBriefing = cache(async (demo: boolean): Promise<Briefing> => {
-  const [cal, mail, cls, notes, memos, usage, checks] = await Promise.all([
+  const [cal, mail, cls, notes, memos, usage, checks, mac] = await Promise.all([
     loadCalendar(demo),
     loadMail(demo),
     loadClassroom(demo),
@@ -198,8 +234,10 @@ export const loadBriefing = cache(async (demo: boolean): Promise<Briefing> => {
     loadMemos(demo),
     loadUsage(demo),
     loadChecksCached(demo),
+    loadMac(demo),
   ]);
   return buildBriefing({
+    macNotes: mac?.notes?.items ?? null,
     now: new Date(),
     events: cal.status === "ok" ? cal.data : null,
     assignments: cls.status === "ok" ? cls.data.assignments : null,

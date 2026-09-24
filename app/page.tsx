@@ -3,9 +3,10 @@ import { AccountAlerts } from "@/components/account-alerts";
 import { AppHeader, SectionNav } from "@/components/app-header";
 import { BriefingHero, HeroSkeleton } from "@/components/briefing-hero";
 import { CalendarSection } from "@/components/calendar-section";
-import { ClassroomSection } from "@/components/classroom-section";
+import { AssignmentsSection } from "@/components/assignments-section";
 import { AutoRefresh } from "@/components/client/auto-refresh";
 import { MailSection } from "@/components/mail-section";
+import { NotesSection } from "@/components/notes-section";
 import { NotificationsSection } from "@/components/notifications-section";
 import { RememberSection } from "@/components/remember-section";
 import { SectionSkeleton } from "@/components/ui";
@@ -48,8 +49,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </Suspense>
           </div>
           <div className="min-w-0 space-y-10">
-            <Suspense fallback={<SectionSkeleton id="classroom" title="과제" />}>
-              <ClassroomSection demo={demo} />
+            <Suspense fallback={<SectionSkeleton id="assignments" title="과제" />}>
+              <AssignmentsSection demo={demo} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton id="mail" title="메일" rows={4} />}>
               <MailSection demo={demo} />
@@ -58,6 +59,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div className="min-w-0 space-y-10 md:col-span-2 xl:col-span-1">
             <Suspense fallback={<SectionSkeleton id="notifications" title="기억할 알림" />}>
               <NotificationsSection demo={demo} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton id="notes" title="맥 메모" />}>
+              <NotesSection demo={demo} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton id="ai" title="AI 사용량" rows={2} />}>
               <UsageSection demo={demo} />

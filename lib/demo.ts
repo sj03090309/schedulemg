@@ -3,9 +3,10 @@ import type { AccountTag } from "./google/accounts";
 import type { CalEvent } from "./google/calendar";
 import type { Announcement, Assignment, ClassroomData } from "./google/classroom";
 import type { MailItem } from "./google/gmail";
+import type { MacData } from "./mac-data";
 import type { Memo } from "./memos";
 import type { NotificationItem } from "./notifications";
-import { HOUR, MINUTE, dateKey, shiftDateKey } from "./time";
+import { HOUR, MINUTE, dateKey, shiftDateKey, startOfDay } from "./time";
 import type { StoredUsageReport, UsageRow } from "./usage/types";
 
 export const DEMO_ACCOUNTS: AccountTag[] = [
@@ -198,6 +199,51 @@ export function demoMemos(now: Date): Memo[] {
     { id: "demo-memo-1", text: "학생증 챙기기", date: today, createdAt: now.toISOString(), doneAt: null },
     { id: "demo-memo-2", text: "도서관 책 반납", date: shiftDateKey(today, 1), createdAt: now.toISOString(), doneAt: null },
   ];
+}
+
+export function demoMacData(now: Date): MacData {
+  const today = dateKey(now);
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * MINUTE).toISOString();
+  return {
+    host: "MacBook",
+    collectedAt: minutesAgo(2),
+    receivedAt: minutesAgo(2),
+    calendar: {
+      available: true,
+      error: null,
+      events: [
+        {
+          uid: "demo-holiday",
+          title: "개천절",
+          calendar: "대한민국 공휴일",
+          color: "#1badf8",
+          start: startOfDay(shiftDateKey(today, 2)).toISOString(),
+          end: startOfDay(shiftDateKey(today, 3)).toISOString(),
+          allDay: true,
+          holiday: true,
+        },
+        {
+          uid: "demo-family",
+          title: "가족 저녁",
+          calendar: "집",
+          color: "#34aadc",
+          start: at(now, 1, 19, 0),
+          end: at(now, 1, 21, 0),
+          allDay: false,
+          holiday: false,
+        },
+      ],
+    },
+    notes: {
+      available: true,
+      error: null,
+      items: [
+        { id: "demo-note-1", title: "졸업 요건 정리", snippet: "전공 필수 3과목 남음, 교양 6학점 더 필요", folder: "학교", modifiedAt: minutesAgo(60 * 48), pinned: true, openItems: [] },
+        { id: "demo-note-2", title: "장보기", snippet: "우유 계란 사과", folder: "메모", modifiedAt: minutesAgo(60), pinned: false, openItems: ["우유", "계란 한 판", "사과"] },
+        { id: "demo-note-3", title: "사이드 프로젝트 아이디어", snippet: "아침 브리핑에 날씨와 미세먼지 넣어 보기", folder: "메모", modifiedAt: minutesAgo(300), pinned: false, openItems: [] },
+      ],
+    },
+  };
 }
 
 export function demoUsageReports(now: Date): StoredUsageReport[] {

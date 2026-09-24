@@ -1,3 +1,5 @@
+import { listAccounts } from "@/lib/google/accounts";
+import { grantedServices } from "@/lib/google/oauth";
 import { checkIngestAuth, readJsonBody } from "@/lib/ingest-auth";
 import { getKV } from "@/lib/store/kv";
 import { loadUsageReports, saveUsageReport } from "@/lib/usage/store";
@@ -8,12 +10,18 @@ export async function GET(request: Request) {
   const denied = checkIngestAuth(request);
   if (denied) return denied;
   const kv = getKV();
-  const reports = await loadUsageReports();
+  const [reports, accounts] = await Promise.all([loadUsageReports(), listAccounts().catch(() => [])]);
   return Response.json({
     ok: true,
     storage: kv.kind,
     persistent: kv.persistent,
     hosts: reports.map((r) => ({ host: r.host, collectedAt: r.collectedAt, receivedAt: r.receivedAt })),
+    // 이메일은 앞 세 글자만 보여 준다.
+    google: accounts.map((a) => ({
+      account: a.email.replace(/^(.{3})[^@]*/, "$1…"),
+      services: grantedServices(a.scope),
+      needsReauth: Boolean(a.needsReauth),
+    })),
   });
 }
 
