@@ -64,10 +64,8 @@ export function loadConfig() {
     liveLimits: get("AGENT_LIVE_LIMITS") !== "0",
     refreshClaudeLogin: get("AGENT_REFRESH_CLAUDE_LOGIN") !== "0",
     macNotifications: get("AGENT_MAC_NOTIFICATIONS") !== "0",
-    mailSummary: get("AGENT_MAIL_SUMMARY") !== "0",
     macCalendar: get("AGENT_MAC_CALENDAR") !== "0",
     macNotes: get("AGENT_MAC_NOTES") !== "0",
-    summaryModel: get("AGENT_SUMMARY_MODEL") || "",
     intervalSec: Math.max(30, Number(get("AGENT_INTERVAL")) || 120),
     stateDir,
   };

@@ -20,7 +20,7 @@ import { describeGoogleError } from "./google/client";
 import { fetchMail, type MailItem } from "./google/gmail";
 import { grantedServices, type GoogleService } from "./google/oauth";
 import { loadMacData, type MacData } from "./mac-data";
-import { insightKey, loadInsights, type MailInsight } from "./mail-insights";
+import { triageMail } from "./mail-rules";
 import { listMemos, type Memo } from "./memos";
 import { listNotifications, type NotificationItem } from "./notifications";
 import { josa } from "./text";
@@ -139,28 +139,24 @@ export interface MailData {
 }
 
 export const loadMail = cache(async (demo: boolean): Promise<Section<MailData>> => {
+  const now = new Date();
+  // 캐시된 메일 객체는 그대로 두고, 규칙으로 판단한 중요도·마감을 붙인 복사본을 쓴다.
+  const flagged = (items: MailItem[]) =>
+    items.map((m) => ({ ...m, flag: triageMail(m, now) })).sort((a, b) => b.date.localeCompare(a.date));
   if (demo) {
-    const items = demoMail(new Date());
     const unreadByAccount: Record<string, number> = { [DEMO_ACCOUNTS[0].email]: 12, [DEMO_ACCOUNTS[1].email]: 4, [DEMO_ACCOUNTS[2].email]: 2 };
-    return ok({ items, unreadByAccount, totalUnread: 18 });
+    return ok({ items: flagged(demoMail(now)), unreadByAccount, totalUnread: 18 });
   }
   const r = await perAccount("gmail", "Gmail", "mail", 60_000, fetchMail);
   if (r.status !== "ok") return r;
   const unreadByAccount: Record<string, number> = {};
   for (const d of r.data) unreadByAccount[d.account] = d.value.inboxUnread;
-  // 맥 에이전트가 Claude로 만든 중요도·요약을 붙인다. 캐시된 객체는 건드리지 않고 복사한다.
-  const insights = await loadInsights().catch(() => ({}) as Record<string, MailInsight>);
-  const items = r.data
-    .flatMap((d) => d.value.items)
-    .map((m) => {
-      const ins = insights[insightKey(m.account, m.id)];
-      return ins && !ins.skipped
-        ? { ...m, insight: { important: ins.important, summary: ins.summary, action: ins.action, due: ins.due } }
-        : m;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
   return ok(
-    { items, unreadByAccount, totalUnread: Object.values(unreadByAccount).reduce((s, n) => s + n, 0) },
+    {
+      items: flagged(r.data.flatMap((d) => d.value.items)),
+      unreadByAccount,
+      totalUnread: Object.values(unreadByAccount).reduce((s, n) => s + n, 0),
+    },
     r.warnings,
   );
 });
@@ -226,25 +222,21 @@ export const loadUsage = cache(async (demo: boolean): Promise<UsageView> => {
 });
 
 export const loadBriefing = cache(async (demo: boolean): Promise<Briefing> => {
-  const [cal, mail, cls, notes, memos, usage, checks, mac] = await Promise.all([
+  const [cal, mail, cls, notes, memos, checks] = await Promise.all([
     loadCalendar(demo),
     loadMail(demo),
     loadClassroom(demo),
     loadNotifications(demo),
     loadMemos(demo),
-    loadUsage(demo),
     loadChecksCached(demo),
-    loadMac(demo),
   ]);
   return buildBriefing({
-    macNotes: mac?.notes?.items ?? null,
     now: new Date(),
     events: cal.status === "ok" ? cal.data : null,
     assignments: cls.status === "ok" ? cls.data.assignments : null,
     mail: mail.status === "ok" ? mail.data.items : null,
     notifications: notes.status === "ok" ? notes.data : null,
     memos,
-    usage,
     checks,
   });
 });

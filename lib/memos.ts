@@ -5,7 +5,7 @@ import { DAY } from "./time";
 export interface Memo {
   id: string;
   text: string;
-  /** 이 날짜(YYYY-MM-DD)부터 "잊지 말 것"에 뜬다. 없으면 바로 뜬다. */
+  /** 이 날짜(YYYY-MM-DD)부터 "할 일"에 뜬다. 없으면 바로 뜬다. */
   date: string | null;
   createdAt: string;
   doneAt: string | null;

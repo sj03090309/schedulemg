@@ -32,36 +32,3 @@ export function AppHeader({ now, demo, devMode }: { now: Date; demo: boolean; de
     </header>
   );
 }
-
-const LINKS: [string, string][] = [
-  ["remember", "잊지 말 것"],
-  ["calendar", "일정"],
-  ["assignments", "과제"],
-  ["mail", "메일"],
-  ["notifications", "알림"],
-  ["notes", "메모"],
-  ["ai", "AI 사용량"],
-];
-
-/** 휴대폰에서 긴 화면을 빨리 오가도록 섹션 바로가기를 둔다. */
-export function SectionNav() {
-  return (
-    <nav
-      aria-label="섹션 바로가기"
-      className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
-    >
-      <ul className="flex gap-2 py-1">
-        {LINKS.map(([id, label]) => (
-          <li key={id}>
-            <a
-              href={`#${id}`}
-              className="block whitespace-nowrap rounded-full bg-surface px-3.5 py-2 text-[14px] text-ink-2 ring-1 ring-line"
-            >
-              {label}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}

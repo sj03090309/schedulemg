@@ -27,7 +27,7 @@ export async function UsageSection({ demo }: { demo: boolean }) {
           action={{ href: "/settings#agent", label: "에이전트 연결 방법" }}
         />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+        <div className="grid gap-3 md:grid-cols-2">
           <ProviderPanel p={usage.claude} now={now} />
           <ProviderPanel p={usage.codex} now={now} />
         </div>

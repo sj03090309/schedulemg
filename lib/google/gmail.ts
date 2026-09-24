@@ -1,15 +1,8 @@
 import { mapLimit } from "../concurrency";
-import { clampText, decodeEntities } from "../text";
+import type { MailFlag } from "../mail-rules";
+import { decodeEntities } from "../text";
 import type { GoogleAccount } from "./accounts";
 import { gget } from "./client";
-
-/** 맥 에이전트(Claude)가 만든 요약. 없으면 아직 요약 전이다. */
-export interface MailInsightView {
-  important: boolean;
-  summary: string;
-  action: string | null;
-  due: string | null;
-}
 
 export interface MailItem {
   id: string;
@@ -24,8 +17,11 @@ export interface MailItem {
   important: boolean;
   starred: boolean;
   category: string;
+  /** 수신 거부 링크가 있는 대량 발송 메일 (뉴스레터, 광고, 서비스 알림) */
+  bulk: boolean;
   link: string;
-  insight?: MailInsightView;
+  /** 규칙으로 판단한 중요도와 마감 (lib/mail-rules) */
+  flag?: MailFlag;
 }
 
 export interface MailBox {
@@ -59,53 +55,13 @@ export async function fetchMail(account: GoogleAccount): Promise<MailBox> {
   const messages = await mapLimit(list.messages ?? [], 8, (m) =>
     gget<MessageResponse>(
       account,
-      `${BASE}/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+      `${BASE}/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`,
     ),
   );
   return {
     items: messages.map((m) => toMailItem(account.email, m)),
     inboxUnread: inbox.messagesUnread ?? 0,
   };
-}
-
-interface Part {
-  mimeType?: string;
-  body?: { data?: string };
-  parts?: Part[];
-}
-
-function findPart(part: Part | undefined, mime: string): Part | undefined {
-  if (!part) return undefined;
-  if (part.mimeType === mime && part.body?.data) return part;
-  for (const p of part.parts ?? []) {
-    const found = findPart(p, mime);
-    if (found) return found;
-  }
-  return undefined;
-}
-
-function htmlToText(html: string): string {
-  return decodeEntities(
-    html
-      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|tr|li|h\d)>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  );
-}
-
-/** 요약에 쓸 본문 텍스트. 인용된 이전 메일 아래는 잘라낸다. */
-export async function fetchMessageText(account: GoogleAccount, id: string, max = 1500): Promise<string> {
-  const m = await gget<{ snippet?: string; payload?: Part }>(account, `${BASE}/messages/${id}?format=full`);
-  const plain = findPart(m.payload, "text/plain");
-  const html = plain ? undefined : findPart(m.payload, "text/html");
-  const raw = plain
-    ? Buffer.from(plain.body!.data!, "base64url").toString("utf8")
-    : html
-      ? htmlToText(Buffer.from(html.body!.data!, "base64url").toString("utf8"))
-      : decodeEntities(m.snippet ?? "");
-  const body = raw.split(/\n\s*(?:On .{0,200}wrote:|\d{4}년 .{0,80}작성:|-{2,}\s*Original Message|-{5,})/)[0];
-  return clampText(body, max);
 }
 
 function header(m: MessageResponse, name: string): string {
@@ -136,6 +92,7 @@ function toMailItem(account: string, m: MessageResponse): MailItem {
     important: labels.has("IMPORTANT"),
     starred: labels.has("STARRED"),
     category,
+    bulk: Boolean(header(m, "List-Unsubscribe")) || /bulk|list/i.test(header(m, "Precedence")),
     link: `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${m.threadId}`,
   };
 }

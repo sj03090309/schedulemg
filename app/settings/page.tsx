@@ -180,7 +180,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         <Block
           id="classroom-forward"
           title="클래스룸 알림을 개인 Gmail로 받기"
-          lead="학교 계정은 학교에서 외부 앱을 막아 두어 클래스룸을 직접 읽지 못할 수 있어요. 그럴 때는 학교 Gmail로 오는 클래스룸 알림 메일을 개인 Gmail로 자동 전달하세요. 메일 요약이 과제와 마감을 찾아 ‘과제’ 칸과 ‘잊지 말 것’에 보여 줘요."
+          lead="학교 계정은 학교에서 외부 앱을 막아 두어 클래스룸을 직접 읽지 못할 수 있어요. 그럴 때는 학교 Gmail로 오는 클래스룸 알림 메일을 개인 Gmail로 자동 전달하세요. 메일 규칙이 과제 메일과 마감 날짜를 찾아 ‘할 일’에 보여 줘요."
         >
           <ol className="list-decimal space-y-2 rounded-2xl bg-surface p-4 pl-9 text-[14px] leading-relaxed text-ink-2 marker:text-ink-3 sm:p-5 sm:pl-10">
             <li>학교 계정으로 Gmail을 열고 오른쪽 위 톱니바퀴에서 ‘모든 설정 보기’를 누르세요.</li>
@@ -193,11 +193,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </ol>
           <p className="text-[13px] leading-relaxed text-ink-3">
             ‘전달 주소 추가’가 보이지 않으면 학교에서 자동 전달도 막아 둔 거예요. 그때는 휴대폰 클래스룸 앱 알림이 맥 알림 센터에 뜨도록(iPhone 미러링)
-            해 두면 ‘기억할 알림’으로 모여요. 개인 계정에도 수업이 있다면 위 목록에서 ‘권한 다시 받기’를 누르고 클래스룸 항목까지 체크하세요.
+            해 두면 중요한 알림이 ‘할 일’에 모여요. 개인 계정에도 수업이 있다면 위 목록에서 ‘권한 다시 받기’를 누르고 클래스룸 항목까지 체크하세요.
           </p>
         </Block>
 
-        <Block id="agent" title="맥 에이전트" lead="맥에서 2분마다 Claude Code와 Codex 사용 기록, 남은 한도, 맥 알림을 모아 이 대시보드로 보내요. 로그인 정보는 맥 밖으로 나가지 않고, 계산된 숫자만 보내요.">
+        <Block id="agent" title="맥 에이전트" lead="맥에서 2분마다 Claude Code와 Codex 사용 기록, 남은 한도, 맥 알림·캘린더·메모를 모아 이 대시보드로 보내요. AI를 부르지 않아 토큰을 쓰지 않고, 로그인 정보는 맥 밖으로 나가지 않아요.">
           {reports.length > 0 ? (
             <ul className="divide-y divide-line rounded-2xl bg-surface">
               {reports.map((r) => (
@@ -282,7 +282,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           </p>
         </Block>
 
-        <Block id="rules" title="알림 규칙" lead="이 규칙으로 ‘기억할 알림’을 고릅니다. 한 줄에 하나씩, 또는 쉼표로 구분해 적으세요. 앱은 번들 ID(com.apple.ical)나 앱 이름(카카오톡) 일부만 적어도 돼요.">
+        <Block id="rules" title="알림 규칙" lead="이 규칙으로 ‘할 일’에 올릴 중요한 알림을 고릅니다. 한 줄에 하나씩, 또는 쉼표로 구분해 적으세요. 앱은 번들 ID(com.apple.ical)나 앱 이름(카카오톡) 일부만 적어도 돼요.">
           <form action={saveRulesAction} className="space-y-4 rounded-2xl bg-surface p-4 sm:p-5">
             <RuleField name="keywords" label="이 단어가 들어가면 중요" value={rules.keywords} rows={5} />
             <RuleField name="importantApps" label="이 앱의 알림은 항상 중요" value={rules.importantApps} rows={3} />

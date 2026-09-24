@@ -120,6 +120,7 @@ export function demoMail(now: Date): MailItem[] {
     id: string,
     account: string,
     from: string,
+    fromAddress: string,
     subject: string,
     snippet: string,
     minutesAgo: number,
@@ -129,7 +130,7 @@ export function demoMail(now: Date): MailItem[] {
     threadId: `demo-${id}`,
     account,
     from,
-    fromAddress: `${id}@example.com`,
+    fromAddress,
     subject,
     snippet,
     date: new Date(now.getTime() - minutesAgo * MINUTE).toISOString(),
@@ -137,28 +138,17 @@ export function demoMail(now: Date): MailItem[] {
     important: false,
     starred: false,
     category: "personal",
+    bulk: false,
     link: "https://mail.google.com/",
     ...flags,
   });
-  // 이번 주 금요일 오후 6시 (오늘이 금요일이면 오늘)
-  const friday = at(now, (5 - new Date(now.getTime() + 9 * HOUR).getUTCDay() + 7) % 7, 18, 0);
   return [
-    m("prof", SCHOOL, "김지훈 교수", "과제 3 제출 형식 안내", "코드와 보고서를 하나의 zip 파일로 묶어 제출하세요.", 40, {
-      important: true,
-      insight: { important: true, summary: "과제 3은 코드와 보고서를 zip 하나로 묶어 클래스룸에 내야 해요.", action: "zip으로 묶어 제출", due: friday },
-    }),
-    m("office", SCHOOL, "학사지원팀", "[필독] 2학기 수강 정정 기간 안내", "수강 정정은 이번 주 금요일 오후 6시까지 가능합니다.", 130, {
-      important: true,
-      insight: { important: true, summary: "수강 정정은 이번 주 금요일 오후 6시에 마감돼요.", action: "수강 정정 확인", due: friday },
-    }),
-    m("club", CLUB, "동아리 회장", "오늘 회의 안건 공유", "회의 전에 안건 문서를 한 번 읽어 와 주세요.", 200, {
-      insight: { important: true, summary: "오늘 5시 회의 전에 안건 문서를 읽어 오라는 부탁이에요.", action: "안건 문서 읽기", due: at(now, 0, 17, 0) },
-    }),
-    m("shop", PERSONAL, "쿠팡", "주문하신 상품이 오늘 도착해요", "배송 기사님이 오후 2시에서 4시 사이에 방문합니다.", 75, {
-      insight: { important: false, summary: "주문한 상품이 오늘 오후 2~4시에 도착해요.", action: null, due: null },
-    }),
-    m("vercel", PERSONAL, "Vercel", "Deployment ready", "Your deployment is ready.", 320, { unread: false, category: "updates" }),
-    m("bank", PERSONAL, "토스뱅크", "9월 카드 이용대금 안내", "이번 달 결제 예정 금액을 확인하세요.", 600, { unread: false }),
+    m("prof", SCHOOL, "김지훈 교수", "jhkim@univ.ac.kr", "과제 3 제출 형식 안내", "코드와 보고서를 하나의 zip 파일로 묶어 제출하세요.", 40, { important: true }),
+    m("office", SCHOOL, "학사지원팀", "haksa@univ.ac.kr", "[필독] 2학기 수강 정정 기간 안내", "수강 정정은 이번 주 금요일 오후 6시까지 가능합니다.", 130, { bulk: true }),
+    m("club", CLUB, "동아리 회장", "clubleader@gmail.com", "오늘 회의 안건 공유", "회의 전에 안건 문서를 한 번 읽어 와 주세요.", 200),
+    m("shop", PERSONAL, "쿠팡", "no-reply@coupang.com", "주문하신 상품이 오늘 도착해요", "배송 기사님이 오후 2시에서 4시 사이에 방문합니다.", 75, { bulk: true, category: "updates" }),
+    m("vercel", PERSONAL, "Vercel", "notifications@vercel.com", "Deployment ready", "Your deployment is ready.", 320, { unread: false, category: "updates" }),
+    m("bank", PERSONAL, "토스뱅크", "noreply@tossbank.com", "9월 카드 이용대금 안내", "이번 달 결제 예정 금액을 확인하세요.", 600, { unread: false }),
   ];
 }
 

@@ -119,22 +119,3 @@ export function formatRelative(date: Date, now: Date = new Date()): string {
   if (abs < DAY) return `${Math.floor(abs / HOUR)}시간 ${suffix}`;
   return `${Math.floor(abs / DAY)}일 ${suffix}`;
 }
-
-/** 시간대별 하늘. 히어로 배경과 인사말에 쓴다. */
-export type SkyPhase = "dawn" | "day" | "dusk" | "night";
-
-export function skyPhase(date: Date = new Date()): SkyPhase {
-  const h = kstParts(date).hour;
-  if (h >= 5 && h < 9) return "dawn";
-  if (h >= 9 && h < 17) return "day";
-  if (h >= 17 && h < 20) return "dusk";
-  return "night";
-}
-
-export function greeting(date: Date = new Date()): string {
-  const h = kstParts(date).hour;
-  if (h >= 4 && h < 11) return "좋은 아침이에요";
-  if (h >= 11 && h < 17) return "좋은 오후예요";
-  if (h >= 17 && h < 22) return "좋은 저녁이에요";
-  return "늦은 밤이에요";
-}
