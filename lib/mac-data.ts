@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { hgetallJSON, hsetJSON } from "./store/kv";
 
 // 맥 에이전트가 보낸 맥 캘린더 일정과 메모 앱 메모. 맥마다 마지막 보고 하나만 둔다.
@@ -101,9 +102,16 @@ export function sanitizeMacData(v: unknown): Omit<MacData, "receivedAt"> | null 
   };
 }
 
-export async function saveMacData(data: Omit<MacData, "receivedAt">): Promise<void> {
-  const stored: MacData = { ...data, receivedAt: new Date().toISOString() };
-  await hsetJSON(KEY, data.hostId || data.host, stored);
+const digestOf = (d: Pick<MacData, "calendar" | "notes">) =>
+  createHash("sha1").update(JSON.stringify([d.calendar, d.notes])).digest("base64url");
+
+/** 저장하고, 내용이 이전과 달라졌는지 돌려준다 (30분마다 오는 확인용 전송은 false). */
+export async function saveMacData(data: Omit<MacData, "receivedAt">): Promise<boolean> {
+  const key = data.hostId || data.host;
+  const previous = (await hgetallJSON<MacData & { digest?: string }>(KEY))[key];
+  const digest = digestOf(data);
+  await hsetJSON(KEY, key, { ...data, receivedAt: new Date().toISOString(), digest });
+  return previous?.digest !== digest;
 }
 
 /** 가장 최근에 보고한 맥의 데이터 */

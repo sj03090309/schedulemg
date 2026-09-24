@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { constants, copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { parseBplist } from "../lib/bplist.mjs";
@@ -43,7 +43,7 @@ export async function collectMacNotifications(config, now = Date.now()) {
   let rows = [];
   try {
     for (const suffix of ["", "-wal", "-shm"]) {
-      if (existsSync(dbPath + suffix)) copyFileSync(dbPath + suffix, path.join(tmp, `db${suffix}`));
+      if (existsSync(dbPath + suffix)) copyFileSync(dbPath + suffix, path.join(tmp, `db${suffix}`), constants.COPYFILE_FICLONE);
     }
     const db = new DatabaseSync(path.join(tmp, "db"));
     try {

@@ -5,12 +5,14 @@ import { BriefingHero, HeroSkeleton } from "@/components/briefing-hero";
 import { CalendarSection } from "@/components/calendar-section";
 import { AssignmentsSection } from "@/components/assignments-section";
 import { AutoRefresh } from "@/components/client/auto-refresh";
+import { LiveUpdates } from "@/components/client/live-updates";
 import { MailSection } from "@/components/mail-section";
 import { NotesSection } from "@/components/notes-section";
 import { NotificationsSection } from "@/components/notifications-section";
 import { RememberSection } from "@/components/remember-section";
 import { SectionSkeleton } from "@/components/ui";
 import { UsageSection } from "@/components/usage-section";
+import { getVersion } from "@/lib/live";
 import { requireSession } from "@/lib/session";
 import type { SkyPhase } from "@/lib/time";
 
@@ -22,6 +24,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const demo = params.demo === "1";
   const sky = demo && typeof params.sky === "string" && SKIES.includes(params.sky as SkyPhase) ? (params.sky as SkyPhase) : undefined;
   const now = new Date();
+  // 지금 화면이 어떤 데이터 버전으로 그려졌는지. 이후 바뀌면 LiveUpdates가 새로 그린다.
+  const version = demo ? "demo" : await getVersion().catch(() => "0");
 
   return (
     <>
@@ -70,6 +74,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </div>
       </main>
       <AutoRefresh />
+      {!demo && <LiveUpdates version={version} />}
     </>
   );
 }

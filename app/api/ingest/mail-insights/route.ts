@@ -1,4 +1,5 @@
 import { checkIngestAuth, readJsonBody } from "@/lib/ingest-auth";
+import { bumpVersion } from "@/lib/live";
 import { INSIGHT_VERSION, parseDue, saveInsights, type MailInsight } from "@/lib/mail-insights";
 import { clampText } from "@/lib/text";
 
@@ -34,5 +35,6 @@ export async function POST(request: Request) {
     };
   }
   await saveInsights(entries);
+  if (Object.keys(entries).length) await bumpVersion();
   return Response.json({ ok: true, saved: Object.keys(entries).length });
 }

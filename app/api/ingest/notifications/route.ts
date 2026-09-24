@@ -1,4 +1,5 @@
 import { checkIngestAuth } from "@/lib/ingest-auth";
+import { bumpVersion } from "@/lib/live";
 import { ingestNotifications, normalizeIncoming, type IncomingNotification } from "@/lib/notifications";
 
 // 휴대폰 단축어·자동화 앱이 연결을 시험할 때 쓴다.
@@ -42,5 +43,6 @@ export async function POST(request: Request) {
   }
 
   const result = await ingestNotifications(incoming);
+  if (result.stored > 0) await bumpVersion();
   return Response.json({ ok: true, ...result });
 }

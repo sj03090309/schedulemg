@@ -4,6 +4,7 @@
 //   node agent/index.mjs --dry-run  보내지 않고 무엇이 수집되는지만 보기
 //   node agent/index.mjs --watch    AGENT_INTERVAL(기본 120초)마다 계속 실행
 //   node agent/index.mjs --check    대시보드 연결과 저장소 확인
+//   node agent/index.mjs --mac-only 맥 캘린더·메모·알림만 바로 보내기 (파일 변경 감시용)
 import { createHash } from "node:crypto";
 import { statSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -22,6 +23,7 @@ const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
 const WATCH = args.has("--watch");
 const CHECK = args.has("--check");
+const MAC_ONLY = args.has("--mac-only");
 
 const log = (msg) => console.log(`[${kstStamp()}] ${msg}`);
 
@@ -127,29 +129,7 @@ async function runOnce(config) {
   }
   notes?.commit?.();
 
-  // 맥 캘린더·메모는 바뀌었을 때만 보낸다 (그대로여도 30분마다 한 번은 보내 최신임을 알린다).
-  let macText = "";
-  if (macCal || macNotes) {
-    const payload = {
-      host: config.host,
-      hostId: config.hostId,
-      collectedAt: new Date().toISOString(),
-      calendar: macCal && { available: macCal.available, error: macCal.error ?? null, events: macCal.events ?? [] },
-      notes: macNotes && { available: macNotes.available, error: macNotes.error ?? null, items: macNotes.items ?? [] },
-    };
-    const digest = createHash("sha1").update(JSON.stringify([payload.calendar, payload.notes])).digest("hex");
-    const stateFile = path.join(config.stateDir, "mac-data.json");
-    const last = readJSON(stateFile, {});
-    try {
-      if (digest !== last.digest || Date.now() - (last.at ?? 0) > 30 * 60_000) {
-        await send(config, "/api/ingest/mac", payload);
-        writeJSON(stateFile, { digest, at: Date.now() });
-      }
-      macText = `, 맥 캘린더 ${macCal?.available ? `${macCal.events.length}개` : "X"}, 맥 메모 ${macNotes?.available ? `${macNotes.items.length}개` : "X"}`;
-    } catch (e) {
-      macText = `, 맥 캘린더·메모 전송 실패(${e?.message ?? e})`;
-    }
-  }
+  const { text: macText } = await sendMacData(config, macCal, macNotes);
 
   let mailText = "";
   try {
@@ -169,6 +149,59 @@ async function runOnce(config) {
       ? `맥 알림 ${notes.items.length}건${noteResult ? `(기억할 알림 ${noteResult.important ?? 0}건)` : ""}`
       : `맥 알림 읽기 실패(${notes.error})`;
   log(`보냄: ${part("Claude", claude)}, ${part("Codex", codex)}, ${noteText}${macText}${mailText} (${Date.now() - started}ms)`);
+}
+
+/**
+ * 맥 캘린더·메모는 바뀌었을 때만 보낸다 (그대로여도 30분마다 한 번은 보내 최신임을 알린다).
+ * heartbeat=false면 30분 확인 전송은 하지 않는다 (파일 변경 감시에서 쓴다).
+ */
+async function sendMacData(config, macCal, macNotes, { heartbeat = true } = {}) {
+  if (!macCal && !macNotes) return { sent: false, text: "" };
+  const payload = {
+    host: config.host,
+    hostId: config.hostId,
+    collectedAt: new Date().toISOString(),
+    calendar: macCal && { available: macCal.available, error: macCal.error ?? null, events: macCal.events ?? [] },
+    notes: macNotes && { available: macNotes.available, error: macNotes.error ?? null, items: macNotes.items ?? [] },
+  };
+  const digest = createHash("sha1").update(JSON.stringify([payload.calendar, payload.notes])).digest("hex");
+  const stateFile = path.join(config.stateDir, "mac-data.json");
+  const last = readJSON(stateFile, {});
+  const summary = `맥 캘린더 ${macCal?.available ? `${macCal.events.length}개` : "X"}, 맥 메모 ${macNotes?.available ? `${macNotes.items.length}개` : "X"}`;
+  try {
+    const changed = digest !== last.digest;
+    if (changed || (heartbeat && Date.now() - (last.at ?? 0) > 30 * 60_000)) {
+      await send(config, "/api/ingest/mac", payload);
+      writeJSON(stateFile, { digest, at: Date.now() });
+      return { sent: changed, text: `, ${summary}${changed ? "(바뀜)" : ""}` };
+    }
+    return { sent: false, text: `, ${summary}` };
+  } catch (e) {
+    return { sent: false, text: `, 맥 캘린더·메모 전송 실패(${e?.message ?? e})` };
+  }
+}
+
+/** 캘린더·메모·알림 DB가 바뀌면 launchd가 바로 실행한다: 맥 데이터와 새 알림만 빠르게 보낸다. */
+async function runMacOnly(config) {
+  const started = Date.now();
+  const [macCal, macNotes, notes] = await Promise.all([
+    config.macCalendar ? safe("맥 캘린더", () => collectMacCalendar()) : null,
+    config.macNotes ? safe("맥 메모", () => collectMacNotes()) : null,
+    config.macNotifications ? safe("맥 알림", () => collectMacNotifications(config)) : null,
+  ]);
+  const mac = await sendMacData(config, macCal, macNotes, { heartbeat: false });
+  let noteText = "";
+  if (notes?.available && notes.items.length) {
+    try {
+      const r = await send(config, "/api/ingest/notifications", { notifications: notes.items });
+      notes.commit?.();
+      noteText = `, 맥 알림 ${notes.items.length}건(기억할 알림 ${r.important ?? 0}건)`;
+    } catch (e) {
+      noteText = `, 맥 알림 전송 실패(${e?.message ?? e})`;
+    }
+  }
+  // 파일은 자주 바뀌므로 실제로 보낸 것이 있을 때만 기록한다.
+  if (mac.sent || noteText) log(`즉시 반영${mac.text}${noteText} (${Date.now() - started}ms)`);
 }
 
 // launchd 로그가 끝없이 커지지 않게 2MB를 넘으면 뒷부분만 남긴다.
@@ -208,6 +241,10 @@ async function main() {
   const config = loadConfig();
   if (CHECK) {
     await check(config);
+    return;
+  }
+  if (MAC_ONLY) {
+    await runMacOnly(config);
     return;
   }
   trimLog(config);

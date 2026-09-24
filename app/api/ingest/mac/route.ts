@@ -1,4 +1,5 @@
 import { checkIngestAuth, readJsonBody } from "@/lib/ingest-auth";
+import { bumpVersion } from "@/lib/live";
 import { sanitizeMacData, saveMacData } from "@/lib/mac-data";
 
 // 맥 에이전트가 맥 캘린더 일정과 메모 앱 메모를 보내는 곳
@@ -18,9 +19,11 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "calendar나 notes 중 하나는 있어야 해요." }, { status: 400 });
   }
 
-  await saveMacData(data);
+  const changed = await saveMacData(data);
+  if (changed) await bumpVersion();
   return Response.json({
     ok: true,
+    changed,
     events: data.calendar?.events.length ?? 0,
     notes: data.notes?.items.length ?? 0,
   });
