@@ -25,7 +25,12 @@ export class RedisKV implements KV {
   }
 
   async hgetall(key: string): Promise<Record<string, string>> {
-    return (await this.redis.hgetall<Record<string, string>>(key)) ?? {};
+    // automaticDeserialization을 끄면 HGETALL 결과가 [필드, 값, 필드, 값, ...] 배열 그대로 온다.
+    const raw: unknown = await this.redis.hgetall(key);
+    if (!Array.isArray(raw)) return (raw as Record<string, string> | null) ?? {};
+    const out: Record<string, string> = {};
+    for (let i = 0; i + 1 < raw.length; i += 2) out[String(raw[i])] = String(raw[i + 1]);
+    return out;
   }
 
   async hset(key: string, entries: Record<string, string>): Promise<void> {
